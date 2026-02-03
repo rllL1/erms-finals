@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Briefcase, User, FileText } from 'lucide-react'
+import { LayoutDashboard, Briefcase, User, FileText, Users } from 'lucide-react'
 
 const menuItems = [
   {
@@ -14,6 +14,11 @@ const menuItems = [
     name: 'Quiz',
     href: '/teacher/quiz',
     icon: FileText,
+  },
+  {
+    name: 'Group Class',
+    href: '/teacher/group-class',
+    icon: Users,
   },
   {
     name: 'Profile',

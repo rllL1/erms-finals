@@ -1,12 +1,70 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
-export async function DELETE(
+export async function GET(
   request: Request,
-  { params }: { params: { quizId: string } }
+  { params }: { params: Promise<{ quizId: string }> }
 ) {
   try {
-    const { quizId } = params
+    const { quizId } = await params
+    console.log('=== GET Quiz API called ===')
+    console.log('Quiz ID:', quizId)
+
+    if (!quizId) {
+      return NextResponse.json({ error: 'Quiz ID is required' }, { status: 400 })
+    }
+
+    const supabase = await createClient()
+
+    const { data: quiz, error } = await supabase
+      .from('quizzes')
+      .select(`
+        *,
+        quiz_questions (
+          id,
+          question,
+          question_type,
+          options,
+          correct_answer,
+          order_number
+        )
+      `)
+      .eq('id', quizId)
+      .single()
+
+    if (error) {
+      console.error('Supabase error fetching quiz:', error)
+      return NextResponse.json({ error: error.message, details: error }, { status: 500 })
+    }
+
+    if (!quiz) {
+      console.log('Quiz not found for ID:', quizId)
+      return NextResponse.json({ error: 'Quiz not found' }, { status: 404 })
+    }
+
+    // Sort questions by order_number
+    if (quiz.quiz_questions) {
+      quiz.quiz_questions.sort((a: any, b: any) => (a.order_number || 0) - (b.order_number || 0))
+    }
+
+    console.log('Quiz found:', quiz.title, 'Questions:', quiz.quiz_questions?.length || 0)
+
+    return NextResponse.json({ quiz })
+  } catch (error) {
+    console.error('Exception in GET /api/teacher/quizzes/[quizId]:', error)
+    return NextResponse.json({ 
+      error: 'Internal server error', 
+      message: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 })
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ quizId: string }> }
+) {
+  try {
+    const { quizId } = await params
 
     if (!quizId) {
       return NextResponse.json({ error: 'Quiz ID is required' }, { status: 400 })

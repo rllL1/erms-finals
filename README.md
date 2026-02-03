@@ -1,4 +1,4 @@
-# Education Management System (ERMS)
+# Exam Records Management System (ERMS)
 
 A secure, role-based education management system built with Next.js (App Router) and Supabase.
 
