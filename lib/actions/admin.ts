@@ -86,20 +86,21 @@ export async function createStudent(formData: FormData) {
       return { error: 'Failed to create user account' }
     }
 
-    // Create profile with student role
+    // Update the auto-created profile with student role
+    // (The trigger creates a default profile, we just need to update it)
     const { error: profileError } = await adminClient
       .from('profiles')
-      .insert({
-        id: authData.user.id,
+      .update({
         role: 'student',
         email: email,
         is_active: true,
       })
+      .eq('id', authData.user.id)
 
     if (profileError) {
       // Rollback: delete the auth user
       await adminClient.auth.admin.deleteUser(authData.user.id)
-      return { error: `Failed to create profile: ${profileError.message}` }
+      return { error: `Failed to update profile: ${profileError.message}` }
     }
 
     // Create student record
@@ -186,15 +187,16 @@ export async function createTeacher(formData: FormData) {
       return { error: 'Failed to create user account' }
     }
 
-    // Create profile with teacher role
+    // Update the auto-created profile with teacher role
+    // (The trigger creates a default profile, we just need to update it)
     const { error: profileError } = await adminClient
       .from('profiles')
-      .insert({
-        id: authData.user.id,
+      .update({
         role: 'teacher',
         email: email,
         is_active: true,
       })
+      .eq('id', authData.user.id)
 
     if (profileError) {
       // Rollback: delete the auth user

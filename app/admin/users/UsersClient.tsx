@@ -1,11 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Plus, GraduationCap, Briefcase, AlertCircle } from 'lucide-react'
 import StudentsTable from './StudentsTable'
 import TeachersTable from './TeachersTable'
-import AddUserModal from './AddUserModal'
 
 interface Student {
   id: string
@@ -45,16 +44,18 @@ export default function UsersClient({
   studentsError,
   teachersError,
 }: UsersClientProps) {
+  const router = useRouter()
   const searchParams = useSearchParams()
   const initialTab = searchParams.get('tab') === 'teachers' ? 'teachers' : 'students'
   
   const [activeTab, setActiveTab] = useState<'students' | 'teachers'>(initialTab)
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [modalType, setModalType] = useState<'student' | 'teacher'>('student')
 
   const handleAddUser = (type: 'student' | 'teacher') => {
-    setModalType(type)
-    setIsModalOpen(true)
+    if (type === 'student') {
+      router.push('/admin/users/add-student')
+    } else {
+      router.push('/admin/users/add-teacher')
+    }
   }
 
   return (
@@ -143,13 +144,6 @@ export default function UsersClient({
           )}
         </div>
       </div>
-
-      {/* Add User Modal */}
-      <AddUserModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        type={modalType}
-      />
     </div>
   )
 }
