@@ -15,6 +15,8 @@ import Divider from '@mui/material/Divider'
 import Typography from '@mui/material/Typography'
 import Chip from '@mui/material/Chip'
 import { styled } from '@mui/material/styles'
+import useMediaQuery from '@mui/material/useMediaQuery'
+import { useTheme } from '@mui/material/styles'
 import Link from 'next/link'
 
 const drawerWidth = 240
@@ -30,16 +32,22 @@ const AppBar = styled(MuiAppBar, {
   backgroundColor: '#fff',
   color: '#1f2937',
   boxShadow: '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)',
-  width: `calc(100% - ${miniDrawerWidth}px)`,
-  marginLeft: `${miniDrawerWidth}px`,
-  ...(open && {
-    width: `calc(100% - ${drawerWidth}px)`,
-    marginLeft: `${drawerWidth}px`,
-    transition: theme.transitions.create(['margin', 'width'], {
-      easing: theme.transitions.easing.easeOut,
-      duration: theme.transitions.duration.enteringScreen,
+  [theme.breakpoints.up('md')]: {
+    width: `calc(100% - ${miniDrawerWidth}px)`,
+    marginLeft: `${miniDrawerWidth}px`,
+    ...(open && {
+      width: `calc(100% - ${drawerWidth}px)`,
+      marginLeft: `${drawerWidth}px`,
+      transition: theme.transitions.create(['margin', 'width'], {
+        easing: theme.transitions.easing.easeOut,
+        duration: theme.transitions.duration.enteringScreen,
+      }),
     }),
-  }),
+  },
+  [theme.breakpoints.down('md')]: {
+    width: '100%',
+    marginLeft: 0,
+  },
 }))
 
 interface StudentHeaderProps {
@@ -54,6 +62,9 @@ export default function StudentHeader({ name, open, onMenuClick }: StudentHeader
   const [notifAnchorEl, setNotifAnchorEl] = useState<null | HTMLElement>(null)
   const [materials, setMaterials] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
+  const isTablet = useMediaQuery(theme.breakpoints.down('md'))
   
   const menuOpen = Boolean(anchorEl)
   const notifOpen = Boolean(notifAnchorEl)
@@ -104,31 +115,32 @@ export default function StudentHeader({ name, open, onMenuClick }: StudentHeader
 
   return (
     <AppBar position="fixed" open={open}>
-      <Toolbar>
+      <Toolbar sx={{ minHeight: { xs: '56px', sm: '64px' } }}>
         <IconButton
           color="inherit"
           aria-label="toggle drawer"
           onClick={onMenuClick}
           edge="start"
-          sx={{ mr: 2 }}
+          sx={{ mr: { xs: 1, sm: 2 } }}
         >
           <MenuIcon />
         </IconButton>
         
         <div style={{ flexGrow: 1 }} />
         
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '0.25rem' : '0.5rem' }}>
           {/* Notification Icon */}
           <IconButton
             color="inherit"
             onClick={handleNotifClick}
             sx={{ 
               color: '#16a34a',
-              '&:hover': { bgcolor: 'rgba(22, 163, 74, 0.08)' }
+              '&:hover': { bgcolor: 'rgba(22, 163, 74, 0.08)' },
+              padding: { xs: '6px', sm: '8px' }
             }}
           >
             <Badge badgeContent={materials.length} color="error">
-              <Bell size={20} />
+              <Bell size={isMobile ? 18 : 20} />
             </Badge>
           </IconButton>
 
@@ -139,21 +151,25 @@ export default function StudentHeader({ name, open, onMenuClick }: StudentHeader
               alignItems: 'center', 
               gap: '0.75rem',
               cursor: 'pointer',
-              padding: '0.5rem 1rem',
+              padding: isMobile ? '0.5rem' : '0.5rem 1rem',
               borderRadius: '0.5rem',
               transition: 'background-color 0.2s',
             }}
             onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
           >
-            <Avatar sx={{ width: 36, height: 36, bgcolor: '#16a34a', fontSize: '0.875rem' }}>
+            <Avatar sx={{ width: { xs: 32, sm: 36 }, height: { xs: 32, sm: 36 }, bgcolor: '#16a34a', fontSize: '0.875rem' }}>
               {name.charAt(0).toUpperCase()}
             </Avatar>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-              <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>{name}</span>
-              <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>Student</span>
-            </div>
-            <ChevronDown className="w-4 h-4" style={{ color: '#6b7280' }} />
+            {!isMobile && (
+              <>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                  <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>{name}</span>
+                  <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>Student</span>
+                </div>
+                <ChevronDown className="w-4 h-4" style={{ color: '#6b7280' }} />
+              </>
+            )}
           </div>
 
           {/* User Menu */}
@@ -207,13 +223,14 @@ export default function StudentHeader({ name, open, onMenuClick }: StudentHeader
                 overflow: 'visible',
                 filter: 'drop-shadow(0px 2px 8px rgba(0,0,0,0.1))',
                 mt: 1.5,
-                minWidth: 350,
-                maxHeight: 500,
+                minWidth: { xs: 280, sm: 350 },
+                maxWidth: { xs: '90vw', sm: 400 },
+                maxHeight: { xs: '70vh', sm: 500 },
               },
             }}
           >
             <div style={{ padding: '12px 16px', borderBottom: '1px solid #e5e7eb' }}>
-              <Typography variant="subtitle1" fontWeight={600}>
+              <Typography variant="subtitle1" fontWeight={600} fontSize={{ xs: '0.9rem', sm: '1rem' }}>
                 Pending Materials
               </Typography>
               <Typography variant="caption" color="text.secondary">
@@ -230,7 +247,7 @@ export default function StudentHeader({ name, open, onMenuClick }: StudentHeader
                 <Typography color="text.secondary">No pending materials</Typography>
               </div>
             ) : (
-              <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+              <div style={{ maxHeight: isTablet ? '50vh' : 400, overflowY: 'auto' }}>
                 {materials.map((material, index) => (
                   <div key={material.id}>
                     <MenuItem
@@ -239,7 +256,7 @@ export default function StudentHeader({ name, open, onMenuClick }: StudentHeader
                       onClick={handleNotifClose}
                       sx={{ 
                         py: 2, 
-                        px: 2,
+                        px: { xs: 1.5, sm: 2 },
                         display: 'flex',
                         flexDirection: 'column',
                         alignItems: 'flex-start',
@@ -247,7 +264,7 @@ export default function StudentHeader({ name, open, onMenuClick }: StudentHeader
                         '&:hover': { bgcolor: 'rgba(22, 163, 74, 0.04)' }
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', flexWrap: 'wrap' }}>
                         {material.material_type === 'quiz' ? (
                           <BookOpen size={18} style={{ color: '#16a34a' }} />
                         ) : (
@@ -256,7 +273,7 @@ export default function StudentHeader({ name, open, onMenuClick }: StudentHeader
                         <Typography 
                           variant="body2" 
                           fontWeight={500}
-                          sx={{ flex: 1 }}
+                          sx={{ flex: 1, fontSize: { xs: '0.8rem', sm: '0.875rem' } }}
                         >
                           {material.title}
                         </Typography>
@@ -267,11 +284,11 @@ export default function StudentHeader({ name, open, onMenuClick }: StudentHeader
                             bgcolor: material.material_type === 'quiz' ? '#dcfce7' : '#dbeafe',
                             color: material.material_type === 'quiz' ? '#16a34a' : '#2563eb',
                             fontWeight: 500,
-                            fontSize: '0.7rem'
+                            fontSize: { xs: '0.65rem', sm: '0.7rem' }
                           }}
                         />
                       </div>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: '0.7rem', sm: '0.75rem' } }}>
                         {material.group_classes?.class_name || 'Unknown Class'}
                       </Typography>
                       {material.due_date && (
@@ -279,7 +296,8 @@ export default function StudentHeader({ name, open, onMenuClick }: StudentHeader
                           variant="caption" 
                           sx={{ 
                             color: new Date(material.due_date) < new Date() ? '#ef4444' : '#f59e0b',
-                            fontWeight: 500
+                            fontWeight: 500,
+                            fontSize: { xs: '0.7rem', sm: '0.75rem' }
                           }}
                         >
                           Due: {new Date(material.due_date).toLocaleString()}
@@ -303,7 +321,8 @@ export default function StudentHeader({ name, open, onMenuClick }: StudentHeader
                     justifyContent: 'center',
                     py: 1.5,
                     color: '#16a34a',
-                    fontWeight: 500
+                    fontWeight: 500,
+                    fontSize: { xs: '0.85rem', sm: '0.9rem' }
                   }}
                 >
                   View All Classes

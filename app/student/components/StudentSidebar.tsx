@@ -16,6 +16,7 @@ import ListItemButton from '@mui/material/ListItemButton'
 import ListItemIcon from '@mui/material/ListItemIcon'
 import ListItemText from '@mui/material/ListItemText'
 import Box from '@mui/material/Box'
+import useMediaQuery from '@mui/material/useMediaQuery'
 import { LayoutDashboard, BookOpen, User } from 'lucide-react'
 
 const drawerWidth = 240
@@ -90,16 +91,22 @@ interface StudentSidebarProps {
 export default function StudentSidebar({ open, onClose }: StudentSidebarProps) {
   const theme = useTheme()
   const pathname = usePathname()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
 
   return (
     <Drawer 
-      variant="permanent" 
-      open={open}
+      variant={isMobile ? "temporary" : "permanent"}
+      open={isMobile ? open : true}
+      onClose={onClose}
+      ModalProps={{
+        keepMounted: true, // Better mobile performance
+      }}
       sx={{
         '& .MuiDrawer-paper': {
           bgcolor: 'background.paper',
           borderRight: '1px solid',
           borderColor: 'divider',
+          width: isMobile ? drawerWidth : (open ? drawerWidth : miniDrawerWidth),
         },
       }}
     >
@@ -171,6 +178,33 @@ export default function StudentSidebar({ open, onClose }: StudentSidebarProps) {
           )
         })}
       </List>
+      
+      {/* Bottom Logos */}
+      <Box
+        sx={{
+          mt: 'auto',
+          p: 2,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          gap: 1,
+        }}
+      >
+        <Image
+          src="/234.png"
+          alt="Logo 1"
+          width={open ? 60 : 40}
+          height={open ? 60 : 40}
+          style={{ objectFit: 'contain' }}
+        />
+        <Image
+          src="/2-re.png"
+          alt="Logo 2"
+          width={open ? 60 : 40}
+          height={open ? 60 : 40}
+          style={{ objectFit: 'contain' }}
+        />
+      </Box>
     </Drawer>
   )
 }

@@ -23,4 +23,66 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  overflow-x: hidden;
+}
+
+/* Mobile-first responsive utilities */
+* {
+  box-sizing: border-box;
+}
+
+/* Ensure proper mobile viewport */
+html {
+  -webkit-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
+}
+
+/* Responsive images */
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Mobile-friendly touch targets */
+button, 
+a, 
+input[type="button"], 
+input[type="submit"] {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Prevent horizontal scroll on mobile */
+.responsive-container {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Mobile-friendly tables */
+@media (max-width: 768px) {
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Responsive text sizing */
+@media (max-width: 640px) {
+  h1 { font-size: 1.5rem; }
+  h2 { font-size: 1.25rem; }
+  h3 { font-size: 1.125rem; }
+  h4 { font-size: 1rem; }
+}
+
+/* Hide scrollbar for touch devices while keeping functionality */
+@media (max-width: 768px) {
+  .scrollable-content {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollable-content::-webkit-scrollbar {
+    display: none;
+  }
 }

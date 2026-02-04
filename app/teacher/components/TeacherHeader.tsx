@@ -11,6 +11,8 @@ import Menu from '@mui/material/Menu'
 import MenuItem from '@mui/material/MenuItem'
 import Avatar from '@mui/material/Avatar'
 import { styled } from '@mui/material/styles'
+import useMediaQuery from '@mui/material/useMediaQuery'
+import { useTheme } from '@mui/material/styles'
 import Link from 'next/link'
 
 const drawerWidth = 240
@@ -26,16 +28,22 @@ const AppBar = styled(MuiAppBar, {
   backgroundColor: '#fff',
   color: '#1f2937',
   boxShadow: '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)',
-  width: `calc(100% - ${miniDrawerWidth}px)`,
-  marginLeft: `${miniDrawerWidth}px`,
-  ...(open && {
-    width: `calc(100% - ${drawerWidth}px)`,
-    marginLeft: `${drawerWidth}px`,
-    transition: theme.transitions.create(['margin', 'width'], {
-      easing: theme.transitions.easing.easeOut,
-      duration: theme.transitions.duration.enteringScreen,
+  [theme.breakpoints.up('md')]: {
+    width: `calc(100% - ${miniDrawerWidth}px)`,
+    marginLeft: `${miniDrawerWidth}px`,
+    ...(open && {
+      width: `calc(100% - ${drawerWidth}px)`,
+      marginLeft: `${drawerWidth}px`,
+      transition: theme.transitions.create(['margin', 'width'], {
+        easing: theme.transitions.easing.easeOut,
+        duration: theme.transitions.duration.enteringScreen,
+      }),
     }),
-  }),
+  },
+  [theme.breakpoints.down('md')]: {
+    width: '100%',
+    marginLeft: 0,
+  },
 }))
 
 interface TeacherHeaderProps {
@@ -48,6 +56,8 @@ interface TeacherHeaderProps {
 export default function TeacherHeader({ name, open, onMenuClick }: TeacherHeaderProps) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
   const menuOpen = Boolean(anchorEl)
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
 
   const handleClick = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget)
@@ -59,7 +69,7 @@ export default function TeacherHeader({ name, open, onMenuClick }: TeacherHeader
 
   return (
     <AppBar position="fixed" open={open}>
-      <Toolbar>
+      <Toolbar sx={{ minHeight: { xs: '56px', sm: '64px' } }}>
         <IconButton
           color="inherit"
           aria-label="toggle drawer"
@@ -80,21 +90,25 @@ export default function TeacherHeader({ name, open, onMenuClick }: TeacherHeader
               alignItems: 'center', 
               gap: '0.75rem',
               cursor: 'pointer',
-              padding: '0.5rem 1rem',
+              padding: isMobile ? '0.5rem' : '0.5rem 1rem',
               borderRadius: '0.5rem',
               transition: 'background-color 0.2s',
             }}
             onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
           >
-            <Avatar sx={{ width: 36, height: 36, bgcolor: '#16a34a', fontSize: '0.875rem' }}>
+            <Avatar sx={{ width: { xs: 32, sm: 36 }, height: { xs: 32, sm: 36 }, bgcolor: '#16a34a', fontSize: '0.875rem' }}>
               {name.charAt(0).toUpperCase()}
             </Avatar>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-              <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>{name}</span>
-              <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>Teacher</span>
-            </div>
-            <ChevronDown className="w-4 h-4" style={{ color: '#6b7280' }} />
+            {!isMobile && (
+              <>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                  <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>{name}</span>
+                  <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>Teacher</span>
+                </div>
+                <ChevronDown className="w-4 h-4" style={{ color: '#6b7280' }} />
+              </>
+            )}
           </div>
 
           <Menu

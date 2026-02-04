@@ -16,6 +16,46 @@ const theme = createTheme({
   typography: {
     fontFamily: 'var(--font-geist-sans)',
   },
+  breakpoints: {
+    values: {
+      xs: 0,
+      sm: 640,
+      md: 768,
+      lg: 1024,
+      xl: 1280,
+    },
+  },
+  components: {
+    MuiCssBaseline: {
+      styleOverrides: {
+        body: {
+          overflowX: 'hidden',
+        },
+      },
+    },
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          minHeight: '44px',
+          '@media (max-width: 640px)': {
+            minHeight: '40px',
+          },
+        },
+      },
+    },
+    MuiIconButton: {
+      styleOverrides: {
+        root: {
+          minHeight: '44px',
+          minWidth: '44px',
+          '@media (max-width: 640px)': {
+            minHeight: '40px',
+            minWidth: '40px',
+          },
+        },
+      },
+    },
+  },
 })
 
 // Create emotion cache
