@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import StudentResultClient from '../../quiz/[materialId]/result/[submissionId]/StudentResultClient'
+import StudentResultClient from '../../../../quiz/[materialId]/result/[submissionId]/StudentResultClient'
 
 export default async function StudentAssignmentResultPage({
   params,

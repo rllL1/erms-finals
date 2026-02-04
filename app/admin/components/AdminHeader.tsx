@@ -1,88 +1,139 @@
 'use client'
 
 import { logout } from '@/lib/actions/auth'
-import { LogOut, User, Menu, X } from 'lucide-react'
+import { LogOut, User, ChevronDown } from 'lucide-react'
 import { useState } from 'react'
+import IconButton from '@mui/material/IconButton'
+import MenuIcon from '@mui/icons-material/Menu'
+import Toolbar from '@mui/material/Toolbar'
+import MuiAppBar from '@mui/material/AppBar'
+import Menu from '@mui/material/Menu'
+import MenuItem from '@mui/material/MenuItem'
+import Avatar from '@mui/material/Avatar'
+import { styled } from '@mui/material/styles'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+
+const drawerWidth = 240
+const miniDrawerWidth = 70
+
+const AppBar = styled(MuiAppBar, {
+  shouldForwardProp: (prop) => prop !== 'open',
+})<{ open?: boolean }>(({ theme, open }) => ({
+  transition: theme.transitions.create(['margin', 'width'], {
+    easing: theme.transitions.easing.sharp,
+    duration: theme.transitions.duration.leavingScreen,
+  }),
+  backgroundColor: '#fff',
+  color: '#1f2937',
+  boxShadow: '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)',
+  width: `calc(100% - ${miniDrawerWidth}px)`,
+  marginLeft: `${miniDrawerWidth}px`,
+  ...(open && {
+    width: `calc(100% - ${drawerWidth}px)`,
+    marginLeft: `${drawerWidth}px`,
+    transition: theme.transitions.create(['margin', 'width'], {
+      easing: theme.transitions.easing.easeOut,
+      duration: theme.transitions.duration.enteringScreen,
+    }),
+  }),
+}))
 
 interface AdminHeaderProps {
   email: string
+  open: boolean
+  onMenuClick: () => void
 }
 
-const menuItems = [
-  { name: 'Dashboard', href: '/admin/dashboard' },
-  { name: 'Users', href: '/admin/users' },
-]
+export default function AdminHeader({ email, open, onMenuClick }: AdminHeaderProps) {
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
+  const menuOpen = Boolean(anchorEl)
 
-export default function AdminHeader({ email }: AdminHeaderProps) {
-  const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const pathname = usePathname()
+  const handleClick = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget)
+  }
+
+  const handleClose = () => {
+    setAnchorEl(null)
+  }
 
   return (
-    <header className="fixed top-0 left-0 right-0 h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 z-50">
-      <div className="h-full px-4 flex items-center justify-between">
-        {/* Mobile menu button */}
-        <button
-          onClick={() => setIsMenuOpen(!isMenuOpen)}
-          className="lg:hidden p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
+    <AppBar position="fixed" open={open}>
+      <Toolbar>
+        <IconButton
+          color="inherit"
+          aria-label="toggle drawer"
+          onClick={onMenuClick}
+          edge="start"
+          sx={{ mr: 2 }}
         >
-          {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-        </button>
-
-        {/* Logo for mobile */}
-        <div className="lg:hidden font-semibold text-gray-900 dark:text-white">
-          Admin Panel
-        </div>
-
-        {/* Spacer for desktop */}
-        <div className="hidden lg:block lg:w-64" />
-
-        {/* Right side */}
-        <div className="flex items-center gap-4">
-          {/* User info */}
-          <div className="hidden sm:flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-            <User className="w-4 h-4" />
-            <span className="max-w-[200px] truncate">{email}</span>
+          <MenuIcon />
+        </IconButton>
+        
+        <div style={{ flexGrow: 1 }} />
+        
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <div 
+            onClick={handleClick}
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '0.75rem',
+              cursor: 'pointer',
+              padding: '0.5rem 1rem',
+              borderRadius: '0.5rem',
+              transition: 'background-color 0.2s',
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+          >
+            <Avatar sx={{ width: 36, height: 36, bgcolor: '#16a34a', fontSize: '0.875rem' }}>
+              {email.charAt(0).toUpperCase()}
+            </Avatar>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+              <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>{email}</span>
+              <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>Admin</span>
+            </div>
+            <ChevronDown className="w-4 h-4" style={{ color: '#6b7280' }} />
           </div>
 
-          {/* Logout button */}
-          <form action={logout}>
-            <button
-              type="submit"
-              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+          <Menu
+            anchorEl={anchorEl}
+            open={menuOpen}
+            onClose={handleClose}
+            onClick={handleClose}
+            transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+            anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+            PaperProps={{
+              elevation: 0,
+              sx: {
+                overflow: 'visible',
+                filter: 'drop-shadow(0px 2px 8px rgba(0,0,0,0.1))',
+                mt: 1.5,
+                minWidth: 200,
+                '& .MuiMenuItem-root': {
+                  px: 2,
+                  py: 1.5,
+                },
+              },
+            }}
+          >
+            <MenuItem component={Link} href="/admin/profile" sx={{ gap: 1.5 }}>
+              <User className="w-4 h-4" />
+              Profile
+            </MenuItem>
+            <MenuItem 
+              onClick={() => {
+                handleClose()
+                logout()
+              }}
+              sx={{ gap: 1.5, color: '#ef4444' }}
             >
               <LogOut className="w-4 h-4" />
-              <span className="hidden sm:inline">Logout</span>
-            </button>
-          </form>
+              Logout
+            </MenuItem>
+          </Menu>
         </div>
-      </div>
-
-      {/* Mobile menu */}
-      {isMenuOpen && (
-        <div className="lg:hidden absolute top-16 left-0 right-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-lg">
-          <nav className="p-4 space-y-2">
-            {menuItems.map((item) => {
-              const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
-              return (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  onClick={() => setIsMenuOpen(false)}
-                  className={`block px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    isActive
-                      ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400'
-                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  {item.name}
-                </Link>
-              )
-            })}
-          </nav>
-        </div>
-      )}
-    </header>
+      </Toolbar>
+    </AppBar>
   )
 }

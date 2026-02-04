@@ -25,9 +25,11 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
+  TextField,
+  InputAdornment,
 } from '@mui/material'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
-import { ArrowLeft, Eye, CheckCircle, XCircle } from 'lucide-react'
+import { ArrowLeft, Eye, CheckCircle, XCircle, Save } from 'lucide-react'
 
 interface Teacher {
   id: string
@@ -51,6 +53,8 @@ interface Submission {
   auto_graded: boolean
   status: string
   quiz_answers: any
+  assignment_response?: string
+  assignment_file_url?: string
   class_materials?: {
     id: string
     title: string
@@ -72,10 +76,14 @@ export default function StudentSubmissionsClient({
   const [submissions, setSubmissions] = useState<Submission[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
   const [mounted, setMounted] = useState(false)
   
   const [viewDialog, setViewDialog] = useState(false)
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null)
+  const [gradeScore, setGradeScore] = useState('')
+  const [maxScore, setMaxScore] = useState('')
+  const [grading, setGrading] = useState(false)
 
   useEffect(() => {
     setMounted(true)
@@ -143,8 +151,72 @@ export default function StudentSubmissionsClient({
   }
 
   const handleViewSubmission = (submission: Submission) => {
+    console.log('Viewing submission:', submission)
+    console.log('Quiz answers:', submission.quiz_answers)
+    console.log('Assignment response:', submission.assignment_response)
     setSelectedSubmission(submission)
+    setGradeScore(submission.score?.toString() || '')
+    setMaxScore(submission.max_score?.toString() || '100')
     setViewDialog(true)
+  }
+
+  const handleGradeSubmission = async () => {
+    if (!selectedSubmission) return
+
+    const score = parseFloat(gradeScore)
+    const maxScoreValue = parseFloat(maxScore)
+    
+    if (isNaN(score) || score < 0) {
+      setError('Score must be a valid number and greater than or equal to 0')
+      return
+    }
+
+    if (isNaN(maxScoreValue) || maxScoreValue <= 0) {
+      setError('Max score must be a valid number and greater than 0')
+      return
+    }
+
+    if (score > maxScoreValue) {
+      setError(`Score cannot be greater than max score (${maxScoreValue})`)
+      return
+    }
+
+    try {
+      setGrading(true)
+      setError('')
+      setSuccess('')
+
+      const response = await fetch(
+        `/api/teacher/classes/${classId}/materials/${selectedSubmission.material_id}/submissions`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            submission_id: selectedSubmission.id,
+            score,
+            max_score: maxScoreValue,
+            teacher_id: teacher.id,
+          }),
+        }
+      )
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setSuccess('Submission graded successfully!')
+        fetchSubmissions()
+        setTimeout(() => {
+          setViewDialog(false)
+          setSuccess('')
+        }, 1500)
+      } else {
+        setError(data.error || 'Failed to grade submission')
+      }
+    } catch (err) {
+      setError('An error occurred while grading')
+    } finally {
+      setGrading(false)
+    }
   }
 
   const getScoreColor = (score: number | null, maxScore: number) => {
@@ -181,6 +253,12 @@ export default function StudentSubmissionsClient({
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
           {error}
+        </Alert>
+      )}
+
+      {success && (
+        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>
+          {success}
         </Alert>
       )}
 
@@ -295,13 +373,137 @@ export default function StudentSubmissionsClient({
           {selectedSubmission?.class_materials?.title} - Answers
         </DialogTitle>
         <DialogContent>
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+              {error}
+            </Alert>
+          )}
+          {success && (
+            <Alert severity="success" sx={{ mb: 2 }}>
+              {success}
+            </Alert>
+          )}
+
+          {/* Score Input for Assignments */}
+          {selectedSubmission?.class_materials?.material_type === 'assignment' && (
+            <Box sx={{ mb: 3, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+              <Typography variant="subtitle1" gutterBottom fontWeight={600}>
+                Grade Assignment
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', mt: 2, flexWrap: 'wrap' }}>
+                <TextField
+                  label="Score"
+                  type="number"
+                  value={gradeScore}
+                  onChange={(e) => setGradeScore(e.target.value)}
+                  inputProps={{
+                    min: 0,
+                    step: 0.5,
+                  }}
+                  sx={{ width: 150 }}
+                  size="small"
+                />
+                <TextField
+                  label="Max Score"
+                  type="number"
+                  value={maxScore}
+                  onChange={(e) => setMaxScore(e.target.value)}
+                  inputProps={{
+                    min: 1,
+                    step: 1,
+                  }}
+                  sx={{ width: 150 }}
+                  size="small"
+                />
+                <Button
+                  variant="contained"
+                  startIcon={<Save size={16} />}
+                  onClick={handleGradeSubmission}
+                  disabled={grading || !gradeScore || !maxScore}
+                  sx={{ 
+                    bgcolor: '#16a34a',
+                    '&:hover': { bgcolor: '#15803d' }
+                  }}
+                >
+                  {grading ? 'Saving...' : 'Save Score'}
+                </Button>
+              </Box>
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                Current Status: {selectedSubmission.is_graded ? (
+                  <Chip label="Graded" color="success" size="small" sx={{ ml: 1 }} />
+                ) : (
+                  <Chip label="Pending" color="warning" size="small" sx={{ ml: 1 }} />
+                )}
+                {selectedSubmission.score !== null && selectedSubmission.max_score !== null && (
+                  <span style={{ marginLeft: 8 }}>
+                    Current Score: {selectedSubmission.score}/{selectedSubmission.max_score}
+                  </span>
+                )}
+              </Typography>
+            </Box>
+          )}
+
+          {/* Display Assignment Response (Text-based) */}
+          {selectedSubmission?.class_materials?.material_type === 'assignment' && 
+           selectedSubmission?.assignment_response && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
+                Student Answer
+              </Typography>
+              <Box
+                sx={{
+                  p: 3,
+                  bgcolor: 'grey.50',
+                  borderRadius: 2,
+                  border: '2px solid',
+                  borderColor: 'grey.300',
+                }}
+              >
+                <Typography
+                  variant="body1"
+                  sx={{ 
+                    whiteSpace: 'pre-wrap',
+                    lineHeight: 1.8,
+                  }}
+                >
+                  {selectedSubmission.assignment_response}
+                </Typography>
+              </Box>
+              {selectedSubmission.assignment_file_url && (
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="subtitle2" gutterBottom fontWeight={600}>
+                    Attached File:
+                  </Typography>
+                  <Button
+                    variant="outlined"
+                    href={selectedSubmission.assignment_file_url}
+                    target="_blank"
+                    sx={{ mt: 1 }}
+                  >
+                    Download Attachment
+                  </Button>
+                </Box>
+              )}
+            </Box>
+          )}
+
+          {/* Display Quiz/Assignment Answers (Question-based) */}
           {selectedSubmission?.quiz_answers?.answers && (
             <Box sx={{ mt: 2 }}>
+              <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
+                {selectedSubmission?.class_materials?.material_type === 'assignment' 
+                  ? 'Student Submission' 
+                  : 'Quiz Answers'}
+              </Typography>
               {selectedSubmission.quiz_answers.answers.map((answer: any, index: number) => (
-                <Accordion key={index}>
+                <Accordion key={index} defaultExpanded={selectedSubmission?.class_materials?.material_type === 'assignment'}>
                   <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
-                      <Typography>Question {index + 1}</Typography>
+                      <Typography fontWeight={500}>
+                        {selectedSubmission?.class_materials?.material_type === 'assignment' 
+                          ? `Question ${index + 1}` 
+                          : `Question ${index + 1}`}
+                      </Typography>
                       {answer.is_correct !== null && (
                         answer.is_correct ? (
                           <Chip
@@ -319,52 +521,68 @@ export default function StudentSubmissionsClient({
                           />
                         )
                       )}
-                      <Chip
-                        label={`${answer.earned_points || 0}/${answer.points} pts`}
-                        size="small"
-                      />
+                      {answer.points && (
+                        <Chip
+                          label={`${answer.earned_points || 0}/${answer.points} pts`}
+                          size="small"
+                        />
+                      )}
                     </Box>
                   </AccordionSummary>
                   <AccordionDetails>
                     <Box>
-                      <Typography variant="subtitle2" gutterBottom>
+                      <Typography variant="subtitle2" gutterBottom fontWeight={600}>
                         Question:
                       </Typography>
-                      <Typography variant="body2" sx={{ mb: 2 }}>
+                      <Typography variant="body2" sx={{ mb: 2, whiteSpace: 'pre-wrap' }}>
                         {answer.question}
                       </Typography>
                       
-                      <Typography variant="subtitle2" gutterBottom>
+                      <Typography variant="subtitle2" gutterBottom fontWeight={600}>
                         Student Answer:
                       </Typography>
-                      <Typography
-                        variant="body2"
+                      <Box
                         sx={{
                           mb: 2,
-                          p: 1,
+                          p: 2,
                           bgcolor: 'grey.100',
                           borderRadius: 1,
+                          border: '1px solid',
+                          borderColor: 'grey.300',
                         }}
                       >
-                        {answer.student_answer || 'No answer provided'}
-                      </Typography>
+                        <Typography
+                          variant="body2"
+                          sx={{ whiteSpace: 'pre-wrap' }}
+                        >
+                          {answer.student_answer || 'No answer provided'}
+                        </Typography>
+                      </Box>
                       
-                      {answer.question_type !== 'essay' && (
+                      {answer.question_type !== 'essay' && answer.correct_answer && (
                         <>
-                          <Typography variant="subtitle2" gutterBottom>
+                          <Typography variant="subtitle2" gutterBottom fontWeight={600}>
                             Correct Answer:
                           </Typography>
-                          <Typography
-                            variant="body2"
+                          <Box
                             sx={{
-                              p: 1,
-                              bgcolor: 'success.light',
-                              color: 'success.contrastText',
+                              p: 2,
+                              bgcolor: 'success.50',
                               borderRadius: 1,
+                              border: '1px solid',
+                              borderColor: 'success.200',
                             }}
                           >
-                            {answer.correct_answer}
-                          </Typography>
+                            <Typography
+                              variant="body2"
+                              sx={{ 
+                                color: 'success.dark',
+                                whiteSpace: 'pre-wrap'
+                              }}
+                            >
+                              {answer.correct_answer}
+                            </Typography>
+                          </Box>
                         </>
                       )}
                     </Box>
@@ -372,6 +590,44 @@ export default function StudentSubmissionsClient({
                 </Accordion>
               ))}
             </Box>
+          )}
+
+          {/* No answers available */}
+          {!selectedSubmission?.quiz_answers?.answers && 
+           !selectedSubmission?.assignment_response &&
+           selectedSubmission?.class_materials?.material_type === 'assignment' && (
+            <Box sx={{ mt: 2, p: 3, bgcolor: 'warning.50', borderRadius: 1, border: '1px solid', borderColor: 'warning.200' }}>
+              <Typography variant="subtitle2" gutterBottom fontWeight={600}>
+                No Text Response
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Submitted on: {selectedSubmission?.submitted_at ? new Date(selectedSubmission.submitted_at).toLocaleString() : 'N/A'}
+              </Typography>
+              {selectedSubmission.assignment_file_url ? (
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    This student submitted a file attachment:
+                  </Typography>
+                  <Button
+                    variant="outlined"
+                    href={selectedSubmission.assignment_file_url}
+                    target="_blank"
+                  >
+                    Download Attachment
+                  </Button>
+                </Box>
+              ) : (
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                  No detailed question answers available. This may be a file-based submission.
+                </Typography>
+              )}
+            </Box>
+          )}
+
+          {!selectedSubmission?.quiz_answers?.answers && selectedSubmission?.class_materials?.material_type !== 'assignment' && (
+            <Typography color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
+              No detailed answers available for this submission
+            </Typography>
           )}
         </DialogContent>
         <DialogActions>

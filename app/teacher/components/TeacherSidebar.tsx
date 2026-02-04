@@ -1,8 +1,68 @@
 'use client'
 
+import * as React from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Briefcase, User, FileText, Users } from 'lucide-react'
+import { styled, useTheme, Theme, CSSObject } from '@mui/material/styles'
+import MuiDrawer from '@mui/material/Drawer'
+import List from '@mui/material/List'
+import Divider from '@mui/material/Divider'
+import IconButton from '@mui/material/IconButton'
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
+import ChevronRightIcon from '@mui/icons-material/ChevronRight'
+import ListItem from '@mui/material/ListItem'
+import ListItemButton from '@mui/material/ListItemButton'
+import ListItemIcon from '@mui/material/ListItemIcon'
+import ListItemText from '@mui/material/ListItemText'
+import Box from '@mui/material/Box'
+import { LayoutDashboard, User, FileText, Users, ClipboardList } from 'lucide-react'
+
+const drawerWidth = 240
+const miniDrawerWidth = 70
+
+const openedMixin = (theme: Theme): CSSObject => ({
+  width: drawerWidth,
+  transition: theme.transitions.create('width', {
+    easing: theme.transitions.easing.sharp,
+    duration: theme.transitions.duration.enteringScreen,
+  }),
+  overflowX: 'hidden',
+})
+
+const closedMixin = (theme: Theme): CSSObject => ({
+  transition: theme.transitions.create('width', {
+    easing: theme.transitions.easing.sharp,
+    duration: theme.transitions.duration.leavingScreen,
+  }),
+  overflowX: 'hidden',
+  width: miniDrawerWidth,
+})
+
+const DrawerHeader = styled('div')(({ theme }) => ({
+  display: 'flex',
+  alignItems: 'center',
+  padding: theme.spacing(0, 1),
+  ...theme.mixins.toolbar,
+  justifyContent: 'flex-end',
+}))
+
+const Drawer = styled(MuiDrawer, { shouldForwardProp: (prop) => prop !== 'open' })(
+  ({ theme, open }) => ({
+    width: drawerWidth,
+    flexShrink: 0,
+    whiteSpace: 'nowrap',
+    boxSizing: 'border-box',
+    ...(open && {
+      ...openedMixin(theme),
+      '& .MuiDrawer-paper': openedMixin(theme),
+    }),
+    ...(!open && {
+      ...closedMixin(theme),
+      '& .MuiDrawer-paper': closedMixin(theme),
+    }),
+  }),
+)
 
 const menuItems = [
   {
@@ -21,74 +81,106 @@ const menuItems = [
     icon: Users,
   },
   {
+    name: 'Grades',
+    href: '/teacher/grades',
+    icon: ClipboardList,
+  },
+  {
     name: 'Profile',
     href: '/teacher/profile',
     icon: User,
   },
 ]
 
-export default function TeacherSidebar() {
+interface TeacherSidebarProps {
+  open: boolean
+  onClose: () => void
+}
+
+export default function TeacherSidebar({ open, onClose }: TeacherSidebarProps) {
+  const theme = useTheme()
   const pathname = usePathname()
 
   return (
-    <>
-      {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:fixed lg:inset-y-0 lg:pt-16 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700">
-        <div className="flex-1 flex flex-col overflow-y-auto pt-5 pb-4">
-          <div className="flex items-center gap-2 px-4 mb-6">
-            <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center">
-              <Briefcase className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h2 className="font-semibold text-gray-900 dark:text-white">Teacher Portal</h2>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Education System</p>
-            </div>
-          </div>
-          
-          <nav className="flex-1 px-3 space-y-1">
-            {menuItems.map((item) => {
-              const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
-              return (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                    isActive
-                      ? 'bg-purple-50 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400'
-                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  <item.icon className="w-5 h-5" />
-                  {item.name}
-                </Link>
-              )
-            })}
-          </nav>
-        </div>
-      </aside>
-
-      {/* Mobile Navigation */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 z-50">
-        <div className="flex justify-around py-2">
-          {menuItems.map((item) => {
-            const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
-            return (
-              <Link
-                key={item.name}
+    <Drawer 
+      variant="permanent" 
+      open={open}
+      sx={{
+        '& .MuiDrawer-paper': {
+          bgcolor: 'background.paper',
+          borderRight: '1px solid',
+          borderColor: 'divider',
+        },
+      }}
+    >
+      <DrawerHeader sx={{ py: 2, justifyContent: open ? 'space-between' : 'center', alignItems: 'center', minHeight: '64px' }}>
+        {open && (
+          <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+            <Image
+              src="/sdsc-logo.png"
+              alt="SDSC Logo"
+              width={120}
+              height={120}
+              style={{ objectFit: 'contain' }}
+            />
+          </Box>
+        )}
+        <IconButton onClick={onClose} size="small">
+          {open ? <ChevronLeftIcon /> : <ChevronRightIcon />}
+        </IconButton>
+      </DrawerHeader>
+      <List sx={{ px: open ? 1.5 : 0.5, py: 2 }}>
+        {menuItems.map((item) => {
+          const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+          const Icon = item.icon
+          return (
+            <ListItem key={item.name} disablePadding sx={{ mb: 0.5, display: 'block' }}>
+              <ListItemButton
+                component={Link}
                 href={item.href}
-                className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg text-xs font-medium transition-colors ${
-                  isActive
-                    ? 'text-purple-600 dark:text-purple-400'
-                    : 'text-gray-500 dark:text-gray-400'
-                }`}
+                selected={isActive}
+                sx={{
+                  borderRadius: 2,
+                  py: 1.5,
+                  minHeight: 48,
+                  justifyContent: open ? 'initial' : 'center',
+                  px: 2.5,
+                  '&.Mui-selected': {
+                    bgcolor: '#16a34a',
+                    color: '#fff',
+                    '&:hover': {
+                      bgcolor: '#15803d',
+                    },
+                    '& .MuiListItemIcon-root': {
+                      color: '#fff',
+                    },
+                  },
+                  '&:hover': {
+                    bgcolor: 'rgba(22, 163, 74, 0.08)',
+                  },
+                }}
               >
-                <item.icon className="w-5 h-5" />
-                {item.name}
-              </Link>
-            )
-          })}
-        </div>
-      </nav>
-    </>
+                <ListItemIcon sx={{ 
+                  color: isActive ? '#fff' : '#16a34a', 
+                  minWidth: 0,
+                  mr: open ? 2 : 'auto',
+                  justifyContent: 'center',
+                }}>
+                  <Icon className="w-5 h-5" />
+                </ListItemIcon>
+                <ListItemText 
+                  primary={item.name} 
+                  sx={{ opacity: open ? 1 : 0 }}
+                  primaryTypographyProps={{
+                    fontSize: '0.95rem',
+                    fontWeight: isActive ? 600 : 500,
+                  }}
+                />
+              </ListItemButton>
+            </ListItem>
+          )
+        })}
+      </List>
+    </Drawer>
   )
 }

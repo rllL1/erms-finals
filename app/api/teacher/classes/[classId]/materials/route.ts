@@ -51,42 +51,42 @@ export async function POST(
     const {
       material_type,
       quiz_id,
-    title,
-    description,
-    time_limit,
-    due_date
-  } = body
-
-  // Validate required fields
-  if (!material_type || !title) {
-    return NextResponse.json(
-      { error: 'Material type and title are required' },
-      { status: 400 }
-    )
-  }
-
-  if (!quiz_id) {
-    return NextResponse.json(
-      { error: 'Quiz/Assignment ID is required' },
-      { status: 400 }
-    )
-  }
-
-  const { data: material, error } = await supabase
-    .from('class_materials')
-    .insert({
-      class_id: classId,
-      material_type,
-      quiz_id,
       title,
       description,
       time_limit,
       due_date
-    })
-    .select()
-    .single()
+    } = body
 
-  if (error) throw error
+    // Validate required fields
+    if (!material_type || !title) {
+      return NextResponse.json(
+        { error: 'Material type and title are required' },
+        { status: 400 }
+      )
+    }
+
+    if (!quiz_id) {
+      return NextResponse.json(
+        { error: 'Quiz/Assignment ID is required' },
+        { status: 400 }
+      )
+    }
+
+    const { data: material, error } = await supabase
+      .from('class_materials')
+      .insert({
+        class_id: classId,
+        material_type,
+        quiz_id,
+        title,
+        description,
+        time_limit,
+        due_date
+      })
+      .select()
+      .single()
+
+    if (error) throw error
 
     return NextResponse.json({
       message: 'Material added to class successfully',
