@@ -26,7 +26,7 @@ export async function sendWelcomeEmail({
   password,
   userType,
 }: WelcomeEmailParams): Promise<{ success: boolean; error?: string }> {
-  const loginUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+  const loginUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://sdscerms.vercel.app/'
 const logoUrl = `${loginUrl}/234.png`
 
   const htmlContent = `
