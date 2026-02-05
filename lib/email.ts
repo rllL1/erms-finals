@@ -166,8 +166,8 @@ export async function sendPasswordResetOTP({
   name,
   otpCode,
 }: PasswordResetOTPParams): Promise<{ success: boolean; error?: string }> {
-  const loginUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-const logoUrl = `${loginUrl}/234.png`
+  const loginUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://sdscerms.vercel.app/'
+  const logoUrl = `${loginUrl}/234.png`
 
   const htmlContent = `
 <!DOCTYPE html>
