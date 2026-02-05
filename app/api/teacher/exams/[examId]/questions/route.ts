@@ -3,10 +3,10 @@ import { NextResponse } from 'next/server'
 
 export async function PUT(
   request: Request,
-  { params }: { params: { examId: string } }
+  { params }: { params: Promise<{ examId: string }> }
 ) {
   try {
-    const { examId } = params
+    const { examId } = await params
     const { questions } = await request.json()
 
     if (!examId) {

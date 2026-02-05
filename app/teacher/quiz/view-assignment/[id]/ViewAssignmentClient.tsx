@@ -130,7 +130,7 @@ export default function ViewAssignmentClient({ assignment, submissionsCount }: V
               </Typography>
             </Box>
             <Typography variant="body1" color={isOverdue ? 'error' : 'inherit'}>
-              {formatDate(assignment.due_date)}
+              {formatDate(assignment.due_date ?? null)}
               {isOverdue && ' (Overdue)'}
             </Typography>
           </Box>

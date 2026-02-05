@@ -54,7 +54,6 @@ interface MobileBottomNavProps {
 export default function MobileBottomNav({ role }: MobileBottomNavProps) {
   const pathname = usePathname()
   const [unreadCount, setUnreadCount] = useState(0)
-  const [mounted, setMounted] = useState(false)
 
   const navItems = role === 'admin' 
     ? adminNavItems 
@@ -62,13 +61,9 @@ export default function MobileBottomNav({ role }: MobileBottomNavProps) {
       ? teacherNavItems 
       : studentNavItems
 
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
   // Fetch unread count for roles that have messaging
   useEffect(() => {
-    if (!mounted || role === 'student') return
+    if (role === 'student') return
 
     const fetchUnreadCount = async () => {
       try {
@@ -85,9 +80,7 @@ export default function MobileBottomNav({ role }: MobileBottomNavProps) {
     fetchUnreadCount()
     const interval = setInterval(fetchUnreadCount, 30000)
     return () => clearInterval(interval)
-  }, [mounted, role])
-
-  if (!mounted) return null
+  }, [role])
 
   return (
     <Paper

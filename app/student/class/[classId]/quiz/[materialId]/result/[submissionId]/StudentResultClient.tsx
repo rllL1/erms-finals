@@ -43,6 +43,7 @@ interface Submission {
   quiz_answers: {
     answers: QuestionAnswer[]
   }
+  assignment_response?: string
 }
 
 interface Material {
@@ -89,9 +90,9 @@ export default function StudentResultClient({
       console.log('Quiz answers:', data.submission?.quiz_answers)
       setSubmission(data.submission)
       setMaterial(data.material)
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching submission:', err)
-      setError(err.message || 'Failed to load results')
+      setError(err instanceof Error ? err.message : 'Failed to load results')
     } finally {
       setLoading(false)
     }
@@ -175,7 +176,7 @@ export default function StudentResultClient({
               <Chip
                 label={`${getScorePercentage()}%`}
                 color={getScoreColor()}
-                size="large"
+                size="medium"
               />
             )}
           </Box>

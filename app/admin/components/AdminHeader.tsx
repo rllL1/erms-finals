@@ -82,14 +82,6 @@ export default function AdminHeader({ email, open, onMenuClick, isMobile: isMobi
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
 
-  useEffect(() => {
-    setMounted(true)
-    fetchNotifications()
-    // Poll for new notifications every 30 seconds
-    const interval = setInterval(fetchNotifications, 30000)
-    return () => clearInterval(interval)
-  }, [])
-
   const fetchNotifications = async () => {
     try {
       const response = await fetch('/api/admin/notifications')

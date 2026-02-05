@@ -178,7 +178,7 @@ export default async function AdminDashboard() {
           </h2>
           <div className="space-y-3">
             {stats.recentActivity.length > 0 ? (
-              stats.recentActivity.map((activity: any) => (
+              stats.recentActivity.map((activity) => (
                 <div
                   key={activity.id}
                   className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
@@ -203,7 +203,7 @@ export default async function AdminDashboard() {
                       {activity.title}
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                      {activity.teachers.teacher_name} • {format(new Date(activity.created_at), 'MMM d, HH:mm')}
+                      {activity.teachers?.[0]?.teacher_name} • {format(new Date(activity.created_at), 'MMM d, HH:mm')}
                     </p>
                   </div>
                   <span className={`px-2 py-1 rounded text-xs font-medium ${

@@ -155,7 +155,7 @@ export default function EditAssignmentClient({ assignment: initialAssignment }: 
           <TextField
             label="Due Date"
             type="datetime-local"
-            value={formatDateForInput(assignment.due_date)}
+            value={formatDateForInput(assignment.due_date ?? null)}
             onChange={(e) => setAssignment({ ...assignment, due_date: e.target.value })}
             InputLabelProps={{ shrink: true }}
             required

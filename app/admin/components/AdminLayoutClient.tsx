@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useSyncExternalStore, useCallback } from 'react'
 import { styled } from '@mui/material/styles'
 import Box from '@mui/material/Box'
 import useMediaQuery from '@mui/material/useMediaQuery'
@@ -55,13 +55,14 @@ interface AdminLayoutClientProps {
 export default function AdminLayoutClient({ children, email }: AdminLayoutClientProps) {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'), { noSsr: true })
-  const [open, setOpen] = useState(false)
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-    setOpen(!isMobile)
-  }, [isMobile])
+  const [open, setOpen] = useState(!isMobile)
+  
+  // Use useSyncExternalStore to safely track hydration
+  const mounted = useSyncExternalStore(
+    useCallback(() => () => {}, []),
+    () => true,
+    () => false
+  )
 
   const handleDrawerToggle = () => {
     setOpen(!open)

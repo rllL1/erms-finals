@@ -62,40 +62,40 @@ export default async function StudentDashboard() {
   const allSubmissions = submissions || []
 
   // Get pending materials (not submitted yet)
-  const classIds = enrolledClasses.map((e: any) => e.group_classes?.id).filter(Boolean)
+  const classIds = enrolledClasses.map((e) => e.group_classes?.[0]?.id).filter(Boolean)
   
-  let pendingMaterials: any[] = []
-  if (classIds.length > 0) {
-    const { data: materials } = await supabase
-      .from('class_materials')
-      .select(`
-        id,
-        title,
-        material_type,
-        due_date,
-        class_id,
-        group_classes (
-          class_name,
-          subject
-        )
-      `)
-      .in('class_id', classIds)
-      .order('due_date', { ascending: true })
+  // Fetch materials first to get the type
+  const { data: allMaterials } = classIds.length > 0 
+    ? await supabase
+        .from('class_materials')
+        .select(`
+          id,
+          title,
+          material_type,
+          due_date,
+          class_id,
+          group_classes (
+            class_name,
+            subject
+          )
+        `)
+        .in('class_id', classIds)
+        .order('due_date', { ascending: true })
+    : { data: null }
 
-    const submittedMaterialIds = allSubmissions.map((s: any) => s.class_materials?.id).filter(Boolean)
-    pendingMaterials = (materials || []).filter((m: any) => !submittedMaterialIds.includes(m.id))
-  }
+  const submittedMaterialIds = allSubmissions.map((s) => s.class_materials?.[0]?.id).filter(Boolean)
+  const pendingMaterials = (allMaterials || []).filter((m) => !submittedMaterialIds.includes(m.id))
 
   // Calculate stats
   const totalClasses = enrolledClasses.length
-  const completedSubmissions = allSubmissions.filter((s: any) => s.status === 'submitted' || s.status === 'graded')
-  const gradedSubmissions = allSubmissions.filter((s: any) => s.is_graded && s.score !== null && s.max_score)
+  const completedSubmissions = allSubmissions.filter((s) => s.status === 'submitted' || s.status === 'graded')
+  const gradedSubmissions = allSubmissions.filter((s) => s.is_graded && s.score !== null && s.max_score)
   
   const averageGrade = gradedSubmissions.length > 0
-    ? gradedSubmissions.reduce((sum: number, s: any) => sum + ((s.score / s.max_score) * 100), 0) / gradedSubmissions.length
+    ? gradedSubmissions.reduce((sum, s) => sum + ((s.score! / s.max_score!) * 100), 0) / gradedSubmissions.length
     : 0
 
-  const pendingCount = pendingMaterials.filter((m: any) => {
+  const pendingCount = pendingMaterials.filter((m) => {
     const dueDate = m.due_date ? new Date(m.due_date) : null
     return !dueDate || dueDate > new Date()
   }).length
@@ -103,7 +103,7 @@ export default async function StudentDashboard() {
   // Get upcoming due items (next 7 days)
   const now = new Date()
   const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
-  const upcomingDue = pendingMaterials.filter((m: any) => {
+  const upcomingDue = pendingMaterials.filter((m) => {
     if (!m.due_date) return false
     const dueDate = new Date(m.due_date)
     return dueDate >= now && dueDate <= nextWeek
@@ -206,8 +206,8 @@ export default async function StudentDashboard() {
           
           {upcomingDue.length > 0 ? (
             <div className="space-y-3">
-              {upcomingDue.map((item: any) => {
-                const dueDate = new Date(item.due_date)
+              {upcomingDue.map((item) => {
+                const dueDate = new Date(item.due_date!)
                 const isUrgent = dueDate.getTime() - now.getTime() < 24 * 60 * 60 * 1000
                 
                 return (
@@ -224,7 +224,7 @@ export default async function StudentDashboard() {
                         {item.title}
                       </p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {item.group_classes?.subject} • {item.material_type}
+                        {item.group_classes?.[0]?.subject} • {item.material_type}
                       </p>
                     </div>
                     <div className="text-right">
@@ -261,7 +261,7 @@ export default async function StudentDashboard() {
           
           {recentActivity.length > 0 ? (
             <div className="space-y-3">
-              {recentActivity.map((activity: any) => (
+              {recentActivity.map((activity) => (
                 <div key={activity.id} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                   <div className={`p-2 rounded-lg ${
                     activity.is_graded 
@@ -276,10 +276,10 @@ export default async function StudentDashboard() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-gray-900 dark:text-white text-sm truncate">
-                      {activity.class_materials?.title || 'Submission'}
+                      {activity.class_materials?.[0]?.title || 'Submission'}
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {activity.class_materials?.group_classes?.subject} • {activity.class_materials?.material_type}
+                      {activity.class_materials?.[0]?.group_classes?.[0]?.subject} • {activity.class_materials?.[0]?.material_type}
                     </p>
                   </div>
                   <div className="text-right">
@@ -319,8 +319,8 @@ export default async function StudentDashboard() {
         
         {enrolledClasses.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {enrolledClasses.slice(0, 6).map((enrollment: any) => {
-              const classData = enrollment.group_classes
+            {enrolledClasses.slice(0, 6).map((enrollment) => {
+              const classData = enrollment.group_classes?.[0]
               if (!classData) return null
               
               return (
@@ -330,7 +330,7 @@ export default async function StudentDashboard() {
                   className="block p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                 >
                   <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center shrink-0">
                       <BookOpen className="w-5 h-5 text-green-600 dark:text-green-400" />
                     </div>
                     <div className="flex-1 min-w-0">

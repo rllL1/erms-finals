@@ -32,8 +32,29 @@ import {
 import { format } from 'date-fns'
 import Link from 'next/link'
 
+interface Teacher {
+  id: string
+  teacher_name: string
+  employee_id: string
+  email: string
+}
+
+interface ClassData {
+  id: string
+  class_name: string
+  subject: string
+  class_students?: Array<{ count: number }> | number
+}
+
+interface Activity {
+  id: string
+  title: string
+  type: string
+  created_at: string
+}
+
 interface TeacherDashboardClientProps {
-  teacher: any
+  teacher: Teacher | null
   stats: {
     classesCount: number
     studentsCount: number
@@ -42,9 +63,10 @@ interface TeacherDashboardClientProps {
     examsCount: number
     pendingSubmissions: number
   }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   recentSubmissions: any[]
-  classData: any[]
-  recentActivity: any[]
+  classData: ClassData[]
+  recentActivity: Activity[]
 }
 
 export default function TeacherDashboardClient({
@@ -358,7 +380,12 @@ export default function TeacherDashboardClient({
               {classData.length > 0 ? (
                 <Box sx={{ p: 1.5 }}>
                   {classData.slice(0, 5).map((cls) => {
-                    const studentCount = cls.class_students?.length || cls.class_students?.[0]?.count || 0
+                    let studentCount = 0
+                    if (typeof cls.class_students === 'number') {
+                      studentCount = cls.class_students
+                    } else if (Array.isArray(cls.class_students) && cls.class_students.length > 0) {
+                      studentCount = cls.class_students[0].count
+                    }
                     return (
                       <Box
                         key={cls.id}
@@ -463,25 +490,25 @@ export default function TeacherDashboardClient({
                     <TableRow key={submission.id} hover>
                       <TableCell sx={{ py: 1.5 }}>
                         <Typography variant="body2" fontWeight={500}>
-                          {submission.students?.student_name || 'N/A'}
+                          {submission.students?.[0]?.student_name || 'N/A'}
                         </Typography>
                       </TableCell>
                       <TableCell sx={{ py: 1.5 }}>
                         <Typography variant="body2" noWrap sx={{ maxWidth: 180 }}>
-                          {submission.class_materials?.title || 'N/A'}
+                          {submission.class_materials?.[0]?.title || 'N/A'}
                         </Typography>
                       </TableCell>
                       <TableCell sx={{ py: 1.5 }}>
                         <Chip
-                          label={submission.class_materials?.material_type || 'N/A'}
+                          label={submission.class_materials?.[0]?.material_type || 'N/A'}
                           size="small"
                           sx={{
                             height: 22,
                             fontSize: '0.65rem',
                             fontWeight: 600,
                             textTransform: 'capitalize',
-                            bgcolor: submission.class_materials?.material_type === 'quiz' ? 'rgba(37, 99, 235, 0.1)' : 'rgba(234, 88, 12, 0.1)',
-                            color: submission.class_materials?.material_type === 'quiz' ? '#2563eb' : '#ea580c',
+                            bgcolor: submission.class_materials?.[0]?.material_type === 'quiz' ? 'rgba(37, 99, 235, 0.1)' : 'rgba(234, 88, 12, 0.1)',
+                            color: submission.class_materials?.[0]?.material_type === 'quiz' ? '#2563eb' : '#ea580c',
                           }}
                         />
                       </TableCell>

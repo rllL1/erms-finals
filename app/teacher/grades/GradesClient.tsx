@@ -443,7 +443,7 @@ export default function GradesClient({ teacherId, classes }: GradesClientProps) 
                           </Box>
                         ) : (
                           <Box className="flex items-center gap-2 justify-center">
-                            <span>{student.exam_average?.toFixed(2) || '0.00'}%</span>
+                            <span>{student.exam_percentage?.toFixed(2) || '0.00'}%</span>
                             <IconButton
                               size="small"
                               onClick={() => setEditingExam({ ...editingExam, [student.student_id]: true })}
