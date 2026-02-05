@@ -57,6 +57,7 @@ interface AdminHeaderProps {
   email: string
   open: boolean
   onMenuClick: () => void
+  isMobile?: boolean
 }
 
 interface Notification {
@@ -70,7 +71,7 @@ interface Notification {
   created_at: string
 }
 
-export default function AdminHeader({ email, open, onMenuClick }: AdminHeaderProps) {
+export default function AdminHeader({ email, open, onMenuClick, isMobile: isMobileLayout }: AdminHeaderProps) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
   const [notifAnchorEl, setNotifAnchorEl] = useState<null | HTMLElement>(null)
   const [notifications, setNotifications] = useState<Notification[]>([])
@@ -138,15 +139,18 @@ export default function AdminHeader({ email, open, onMenuClick }: AdminHeaderPro
   return (
     <AppBar position="fixed" open={open}>
       <Toolbar sx={{ minHeight: { xs: '56px', sm: '64px' } }}>
-        <IconButton
-          color="inherit"
-          aria-label="toggle drawer"
-          onClick={onMenuClick}
-          edge="start"
-          sx={{ mr: 2 }}
-        >
-          <MenuIcon />
-        </IconButton>
+        {/* Hide menu button on mobile since we use bottom nav */}
+        {!isMobileLayout && (
+          <IconButton
+            color="inherit"
+            aria-label="toggle drawer"
+            onClick={onMenuClick}
+            edge="start"
+            sx={{ mr: 2 }}
+          >
+            <MenuIcon />
+          </IconButton>
+        )}
         
         <div style={{ flexGrow: 1 }} />
         

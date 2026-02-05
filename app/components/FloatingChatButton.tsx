@@ -62,19 +62,23 @@ export default function FloatingChatButton({ role }: FloatingChatButtonProps) {
         color="primary"
         aria-label="messages"
         onClick={handleClick}
+        size="medium"
         sx={{
           position: 'fixed',
-          bottom: 24,
-          right: 24,
+          bottom: { xs: 16, sm: 24 },
+          right: { xs: 16, sm: 24 },
           zIndex: 1000,
           bgcolor: '#16a34a',
           '&:hover': {
             bgcolor: '#15803d'
-          }
+          },
+          width: { xs: 48, sm: 56 },
+          height: { xs: 48, sm: 56 },
+          minHeight: 'unset',
         }}
       >
         <Badge badgeContent={unreadCount} color="error" max={99}>
-          <ChatIcon />
+          <ChatIcon sx={{ fontSize: { xs: 22, sm: 24 } }} />
         </Badge>
       </Fab>
     </Tooltip>

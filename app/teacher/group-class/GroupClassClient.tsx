@@ -8,7 +8,6 @@ import {
   Typography,
   Card,
   CardContent,
-  Grid,
   Chip,
   IconButton,
   Dialog,
@@ -18,6 +17,8 @@ import {
   TextField,
   Alert,
   CircularProgress,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material'
 import { Plus, Users, Clock, Code, Trash2, Eye } from 'lucide-react'
 import type { GroupClass } from '@/lib/types'
@@ -30,6 +31,8 @@ interface Teacher {
 
 export default function GroupClassClient({ teacher }: { teacher: Teacher }) {
   const router = useRouter()
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
   const [classes, setClasses] = useState<GroupClass[]>([])
   const [loading, setLoading] = useState(true)
   const [openDialog, setOpenDialog] = useState(false)
@@ -62,7 +65,7 @@ export default function GroupClassClient({ teacher }: { teacher: Teacher }) {
       } else {
         setError(data.error || 'Failed to fetch classes')
       }
-    } catch (err) {
+    } catch (_err) {
       setError('An error occurred while fetching classes')
     } finally {
       setLoading(false)
@@ -104,7 +107,7 @@ export default function GroupClassClient({ teacher }: { teacher: Teacher }) {
       } else {
         setError(data.error || 'Failed to create class')
       }
-    } catch (err) {
+    } catch (_err) {
       setError('An error occurred while creating the class')
     }
   }
@@ -124,7 +127,7 @@ export default function GroupClassClient({ teacher }: { teacher: Teacher }) {
         const data = await response.json()
         setError(data.error || 'Failed to delete class')
       }
-    } catch (err) {
+    } catch (_err) {
       setError('An error occurred while deleting the class')
     }
   }
@@ -134,15 +137,23 @@ export default function GroupClassClient({ teacher }: { teacher: Teacher }) {
   }
 
   return (
-    <Box sx={{ maxWidth: '1536px', mx: 'auto', mt: 4, mb: 4, px: 2 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4" gutterBottom>
+    <Box sx={{ maxWidth: '1536px', mx: 'auto', mt: { xs: 2, sm: 4 }, mb: 4, px: { xs: 1, sm: 2 } }}>
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: { xs: 'column', sm: 'row' },
+        justifyContent: 'space-between', 
+        alignItems: { xs: 'stretch', sm: 'center' }, 
+        gap: 2,
+        mb: 3 
+      }}>
+        <Typography variant={isMobile ? 'h5' : 'h4'} gutterBottom sx={{ mb: 0 }}>
           Group Classes
         </Typography>
         <Button
           variant="contained"
-          startIcon={<Plus />}
+          startIcon={<Plus size={18} />}
           onClick={() => setOpenDialog(true)}
+          fullWidth={isMobile}
           sx={{ bgcolor: 'rgb(147, 51, 234)', '&:hover': { bgcolor: 'rgb(126, 34, 206)' } }}
         >
           Create Class
@@ -167,7 +178,7 @@ export default function GroupClassClient({ teacher }: { teacher: Teacher }) {
         </Box>
       ) : classes.length === 0 ? (
         <Card>
-          <CardContent sx={{ textAlign: 'center', py: 8 }}>
+          <CardContent sx={{ textAlign: 'center', py: { xs: 4, sm: 8 } }}>
             <Typography variant="h6" color="text.secondary" gutterBottom>
               No classes yet
             </Typography>
@@ -176,7 +187,7 @@ export default function GroupClassClient({ teacher }: { teacher: Teacher }) {
             </Typography>
             <Button
               variant="contained"
-              startIcon={<Plus />}
+              startIcon={<Plus size={18} />}
               onClick={() => setOpenDialog(true)}
               sx={{ bgcolor: 'rgb(147, 51, 234)', '&:hover': { bgcolor: 'rgb(126, 34, 206)' } }}
             >
@@ -185,19 +196,26 @@ export default function GroupClassClient({ teacher }: { teacher: Teacher }) {
           </CardContent>
         </Card>
       ) : (
-        <Grid container spacing={3}>
+        <Box sx={{ 
+          display: 'grid', 
+          gridTemplateColumns: { 
+            xs: '1fr', 
+            sm: 'repeat(2, 1fr)', 
+            lg: 'repeat(3, 1fr)' 
+          }, 
+          gap: { xs: 2, sm: 3 } 
+        }}>
           {classes.map((cls) => (
-            <Grid item xs={12} md={6} lg={4} key={cls.id}>
-              <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                <CardContent sx={{ flexGrow: 1 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 2 }}>
-                    <Typography variant="h6" component="h2">
-                      {cls.class_name}
-                    </Typography>
-                    <Box>
-                      <IconButton
-                        size="small"
-                        onClick={() => router.push(`/teacher/group-class/${cls.id}`)}
+            <Card key={cls.id} sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+              <CardContent sx={{ flexGrow: 1, p: { xs: 2, sm: 3 } }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 2 }}>
+                  <Typography variant="h6" component="h2" sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}>
+                    {cls.class_name}
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexShrink: 0 }}>
+                    <IconButton
+                      size="small"
+                      onClick={() => router.push(`/teacher/group-class/${cls.id}`)}
                         sx={{ color: 'rgb(147, 51, 234)' }}
                       >
                         <Eye size={20} />
@@ -234,19 +252,24 @@ export default function GroupClassClient({ teacher }: { teacher: Teacher }) {
 
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 2, p: 1, bgcolor: 'grey.100', borderRadius: 1 }}>
                     <Code size={16} />
-                    <Typography variant="body2" fontWeight="bold">
+                    <Typography variant="body2" fontWeight="bold" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                       {cls.class_code}
                     </Typography>
                   </Box>
                 </CardContent>
               </Card>
-            </Grid>
           ))}
-        </Grid>
+        </Box>
       )}
 
       {/* Create Class Dialog */}
-      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="sm" fullWidth>
+      <Dialog 
+        open={openDialog} 
+        onClose={() => setOpenDialog(false)} 
+        maxWidth="sm" 
+        fullWidth
+        fullScreen={isMobile}
+      >
         <DialogTitle>Create New Class</DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
@@ -281,11 +304,12 @@ export default function GroupClassClient({ teacher }: { teacher: Teacher }) {
             />
           </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
+        <DialogActions sx={{ p: { xs: 2, sm: 1 }, flexDirection: { xs: 'column', sm: 'row' }, gap: { xs: 1, sm: 0 } }}>
+          <Button onClick={() => setOpenDialog(false)} fullWidth={isMobile}>Cancel</Button>
           <Button
             onClick={handleCreateClass}
             variant="contained"
+            fullWidth={isMobile}
             sx={{ bgcolor: 'rgb(147, 51, 234)', '&:hover': { bgcolor: 'rgb(126, 34, 206)' } }}
           >
             Create

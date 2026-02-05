@@ -6,7 +6,6 @@ import {
   Typography,
   Card,
   CardContent,
-  Grid,
   Chip,
   Table,
   TableBody,
@@ -23,6 +22,8 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material'
 import { 
   BookOpen, 
@@ -87,6 +88,8 @@ interface ClassGrades {
 }
 
 export default function StudentGradesClient({ student }: { student: Student }) {
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
   const [classes, setClasses] = useState<ClassSummary[]>([])
   const [selectedClassId, setSelectedClassId] = useState<string>('')
   const [classGrades, setClassGrades] = useState<ClassGrades | null>(null)
@@ -218,8 +221,8 @@ export default function StudentGradesClient({ student }: { student: Student }) {
   }
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h4" sx={{ fontWeight: 700, color: '#16a34a', mb: 3 }}>
+    <Box sx={{ p: { xs: 1.5, sm: 3 } }}>
+      <Typography variant={isMobile ? 'h5' : 'h4'} sx={{ fontWeight: 700, color: '#16a34a', mb: 3 }}>
         My Grades
       </Typography>
 
@@ -239,7 +242,14 @@ export default function StudentGradesClient({ student }: { student: Student }) {
         >
           {classes.map((cls) => (
             <MenuItem key={cls.classId} value={cls.classId}>
-              {cls.className} - {cls.subject} ({cls.teacherName})
+              <Box sx={{ 
+                display: 'flex', 
+                flexDirection: isMobile ? 'column' : 'row',
+                gap: isMobile ? 0 : 1
+              }}>
+                <span>{cls.className} - {cls.subject}</span>
+                {!isMobile && <span>({cls.teacherName})</span>}
+              </Box>
             </MenuItem>
           ))}
         </Select>
@@ -247,57 +257,57 @@ export default function StudentGradesClient({ student }: { student: Student }) {
 
       {/* Class Summary Cards */}
       {selectedClass && (
-        <Grid container spacing={3} sx={{ mb: 3 }}>
-          <Grid size={{ xs: 12, md: 4 }}>
-            <Card sx={{ height: '100%', borderTop: '4px solid #3b82f6' }}>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                  <ClipboardList size={24} color="#3b82f6" />
-                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                    Quizzes
-                  </Typography>
-                </Box>
-                <Typography variant="h4" sx={{ fontWeight: 700, color: '#3b82f6' }}>
-                  {selectedClass.quizGradedCount}/{selectedClass.quizCount}
+        <Box sx={{ 
+          display: 'grid', 
+          gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, 
+          gap: { xs: 2, sm: 3 }, 
+          mb: 3 
+        }}>
+          <Card sx={{ height: '100%', borderTop: '4px solid #3b82f6' }}>
+            <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                <ClipboardList size={isMobile ? 20 : 24} color="#3b82f6" />
+                <Typography variant="h6" sx={{ fontWeight: 600, fontSize: { xs: '1rem', sm: '1.25rem' } }}>
+                  Quizzes
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Graded / Total Submitted
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
+              </Box>
+              <Typography variant="h4" sx={{ fontWeight: 700, color: '#3b82f6', fontSize: { xs: '1.5rem', sm: '2rem' } }}>
+                {selectedClass.quizGradedCount}/{selectedClass.quizCount}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                Graded / Total Submitted
+              </Typography>
+            </CardContent>
+          </Card>
 
-          <Grid size={{ xs: 12, md: 4 }}>
-            <Card sx={{ height: '100%', borderTop: '4px solid #f59e0b' }}>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                  <FileText size={24} color="#f59e0b" />
-                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                    Assignments
-                  </Typography>
-                </Box>
-                <Typography variant="h4" sx={{ fontWeight: 700, color: '#f59e0b' }}>
-                  {selectedClass.assignmentGradedCount}/{selectedClass.assignmentCount}
+          <Card sx={{ height: '100%', borderTop: '4px solid #f59e0b' }}>
+            <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                <FileText size={isMobile ? 20 : 24} color="#f59e0b" />
+                <Typography variant="h6" sx={{ fontWeight: 600, fontSize: { xs: '1rem', sm: '1.25rem' } }}>
+                  Assignments
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Graded / Total Submitted
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
+              </Box>
+              <Typography variant="h4" sx={{ fontWeight: 700, color: '#f59e0b', fontSize: { xs: '1.5rem', sm: '2rem' } }}>
+                {selectedClass.assignmentGradedCount}/{selectedClass.assignmentCount}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                Graded / Total Submitted
+              </Typography>
+            </CardContent>
+          </Card>
 
-          <Grid size={{ xs: 12, md: 4 }}>
-            <Card sx={{ height: '100%', borderTop: '4px solid #16a34a' }}>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                  <BookOpen size={24} color="#16a34a" />
-                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                    Exams
-                  </Typography>
-                </Box>
-                {selectedClass.hasExamScore ? (
-                  <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                    {selectedClass.prelimScore !== null && (
+          <Card sx={{ height: '100%', borderTop: '4px solid #16a34a', gridColumn: { xs: '1', sm: 'span 2', md: 'span 1' } }}>
+            <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                <BookOpen size={isMobile ? 20 : 24} color="#16a34a" />
+                <Typography variant="h6" sx={{ fontWeight: 600, fontSize: { xs: '1rem', sm: '1.25rem' } }}>
+                  Exams
+                </Typography>
+              </Box>
+              {selectedClass.hasExamScore ? (
+                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                  {selectedClass.prelimScore !== null && (
                       <Box>
                         <Typography variant="caption" color="text.secondary">Prelim</Typography>
                         <Typography variant="h6" sx={{ fontWeight: 600, color: '#16a34a' }}>
@@ -329,21 +339,24 @@ export default function StudentGradesClient({ student }: { student: Student }) {
                 )}
               </CardContent>
             </Card>
-          </Grid>
-        </Grid>
+        </Box>
       )}
 
       {/* Tabs for Detailed Grades */}
-      <Paper sx={{ mb: 3 }}>
+      <Paper sx={{ mb: 3, overflow: 'hidden' }}>
         <Tabs
           value={tabValue}
           onChange={(_, newValue) => setTabValue(newValue)}
+          variant={isMobile ? 'fullWidth' : 'standard'}
           sx={{
             borderBottom: 1,
             borderColor: 'divider',
             '& .MuiTab-root': {
               textTransform: 'none',
               fontWeight: 600,
+              minWidth: isMobile ? 'auto' : 120,
+              fontSize: { xs: '0.75rem', sm: '0.875rem' },
+              px: { xs: 1, sm: 2 },
             },
             '& .Mui-selected': {
               color: '#16a34a !important',
@@ -353,9 +366,9 @@ export default function StudentGradesClient({ student }: { student: Student }) {
             },
           }}
         >
-          <Tab label="Quizzes" icon={<ClipboardList size={18} />} iconPosition="start" />
-          <Tab label="Assignments" icon={<FileText size={18} />} iconPosition="start" />
-          <Tab label="Exams" icon={<BookOpen size={18} />} iconPosition="start" />
+          <Tab label={isMobile ? 'Quiz' : 'Quizzes'} icon={<ClipboardList size={16} />} iconPosition="start" />
+          <Tab label={isMobile ? 'Assign' : 'Assignments'} icon={<FileText size={16} />} iconPosition="start" />
+          <Tab label="Exams" icon={<BookOpen size={16} />} iconPosition="start" />
         </Tabs>
 
         {gradesLoading ? (

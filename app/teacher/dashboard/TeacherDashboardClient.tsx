@@ -1,12 +1,10 @@
 'use client'
 
-import { useState } from 'react'
 import {
   Box,
   Card,
   CardContent,
   Typography,
-  Grid,
   Avatar,
   Chip,
   Table,
@@ -15,9 +13,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  CardActionArea,
-  Paper,
-  Divider,
+  LinearProgress,
 } from '@mui/material'
 import {
   BookOpen,
@@ -25,22 +21,16 @@ import {
   FileText,
   ClipboardList,
   AlertCircle,
-  TrendingUp,
   Plus,
   BarChart3,
   Activity,
   Clock,
   CheckCircle,
+  GraduationCap,
+  ArrowRight,
 } from 'lucide-react'
 import { format } from 'date-fns'
-import { ChartDataProvider } from '@mui/x-charts-premium/ChartDataProvider'
-import { ChartsSurface } from '@mui/x-charts-premium/ChartsSurface'
-import { BarPlot } from '@mui/x-charts-premium/BarChart'
-import { ChartsLegend } from '@mui/x-charts-premium/ChartsLegend'
-import { ChartsTooltip } from '@mui/x-charts-premium/ChartsTooltip'
-import { ChartsXAxis } from '@mui/x-charts-premium/ChartsXAxis'
-import { ChartsYAxis } from '@mui/x-charts-premium/ChartsYAxis'
-import { ChartsAxisHighlight } from '@mui/x-charts-premium/ChartsAxisHighlight'
+import Link from 'next/link'
 
 interface TeacherDashboardClientProps {
   teacher: any
@@ -64,111 +54,41 @@ export default function TeacherDashboardClient({
   classData,
   recentActivity,
 }: TeacherDashboardClientProps) {
-  const [selectedCard, setSelectedCard] = useState<number | null>(null)
-
-  // Prepare chart data
-  const chartData = classData.map((cls) => ({
-    class: cls.class_code,
-    students: cls.class_students?.length || 0,
-  }))
-
-  const statCards = [
-    {
-      title: 'Total Classes',
-      value: stats.classesCount,
-      icon: BookOpen,
-      color: '#16a34a',
-      bgColor: 'rgba(22, 163, 74, 0.1)',
-    },
-    {
-      title: 'Total Students',
-      value: stats.studentsCount,
-      icon: Users,
-      color: '#2563eb',
-      bgColor: 'rgba(37, 99, 235, 0.1)',
-    },
-    {
-      title: 'Quizzes Created',
-      value: stats.quizzesCount,
-      icon: ClipboardList,
-      color: '#7c3aed',
-      bgColor: 'rgba(124, 58, 237, 0.1)',
-    },
-    {
-      title: 'Assignments',
-      value: stats.assignmentsCount,
-      icon: FileText,
-      color: '#ea580c',
-      bgColor: 'rgba(234, 88, 12, 0.1)',
-    },
-    {
-      title: 'Pending Grading',
-      value: stats.pendingSubmissions,
-      icon: AlertCircle,
-      color: '#dc2626',
-      bgColor: 'rgba(220, 38, 38, 0.1)',
-    },
-  ]
-
-  const activityStats = [
-    {
-      title: 'Total Exams',
-      value: stats.examsCount,
-      icon: FileText,
-      color: '#16a34a',
-      bgColor: 'rgba(22, 163, 74, 0.1)',
-    },
-    {
-      title: 'Total Quizzes',
-      value: stats.quizzesCount,
-      icon: ClipboardList,
-      color: '#2563eb',
-      bgColor: 'rgba(37, 99, 235, 0.1)',
-    },
-    {
-      title: 'Assignments',
-      value: stats.assignmentsCount,
-      icon: CheckCircle,
-      color: '#f59e0b',
-      bgColor: 'rgba(245, 158, 11, 0.1)',
-    },
-    {
-      title: 'Pending Grading',
-      value: stats.pendingSubmissions,
-      icon: Clock,
-      color: '#6366f1',
-      bgColor: 'rgba(99, 102, 241, 0.1)',
-    },
-  ]
+  const totalMaterials = stats.quizzesCount + stats.assignmentsCount + stats.examsCount
+  const gradedPercentage = totalMaterials > 0 
+    ? Math.round(((totalMaterials - stats.pendingSubmissions) / totalMaterials) * 100)
+    : 100
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 1400, mx: 'auto' }}>
       {/* Welcome Section */}
       <Card
         sx={{
           mb: 3,
           background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)',
           color: 'white',
+          borderRadius: 3,
         }}
       >
-        <CardContent sx={{ py: 4 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+        <CardContent sx={{ py: 3, px: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5 }}>
             <Avatar
               sx={{
-                width: 80,
-                height: 80,
+                width: 64,
+                height: 64,
                 bgcolor: 'rgba(255, 255, 255, 0.2)',
-                fontSize: '2rem',
+                fontSize: '1.5rem',
                 fontWeight: 'bold',
+                border: '2px solid rgba(255,255,255,0.3)',
               }}
             >
               {teacher?.teacher_name?.charAt(0) || 'T'}
             </Avatar>
             <Box>
-              <Typography variant="h4" fontWeight="bold" gutterBottom>
+              <Typography variant="h5" fontWeight="bold">
                 Welcome back, {teacher?.teacher_name || 'Teacher'}!
               </Typography>
-              <Typography variant="body1" sx={{ opacity: 0.9 }}>
+              <Typography variant="body2" sx={{ opacity: 0.9, mt: 0.5 }}>
                 Employee ID: {teacher?.employee_id || 'N/A'} • {teacher?.email}
               </Typography>
             </Box>
@@ -177,617 +97,427 @@ export default function TeacherDashboardClient({
       </Card>
 
       {/* Statistics Cards */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        {statCards.map((stat, index) => (
-          <Grid item xs={12} sm={6} md={4} lg={2.4} key={index}>
-            <Card
-              sx={{
-                height: '100%',
-                border: `3px solid ${stat.color}`,
-                borderRadius: 2,
-                overflow: 'visible',
-              }}
-            >
-              <CardActionArea
-                onClick={() => setSelectedCard(index)}
-                data-active={selectedCard === index ? '' : undefined}
-                sx={{
-                  height: '100%',
-                  bgcolor: 'white',
-                  '&[data-active]': {
-                    bgcolor: stat.bgColor,
-                  },
-                  '&:hover': {
-                    bgcolor: stat.bgColor,
-                  },
-                }}
-              >
-                <CardContent sx={{ p: 3 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Box>
-                      <Typography variant="body2" color="text.secondary" fontWeight={500} sx={{ mb: 1 }}>
-                        {stat.title}
-                      </Typography>
-                      <Typography 
-                        variant="h3" 
-                        fontWeight="bold" 
-                        sx={{ color: stat.color }}
-                      >
-                        {stat.value}
-                      </Typography>
-                    </Box>
-                    <Box
-                      sx={{
-                        p: 1.5,
-                        borderRadius: 2,
-                        bgcolor: stat.bgColor,
-                        border: `2px solid ${stat.color}`,
-                      }}
-                    >
-                      <stat.icon size={28} color={stat.color} />
-                    </Box>
-                  </Box>
-                </CardContent>
-              </CardActionArea>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
+      <Box sx={{ 
+        display: 'grid', 
+        gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', lg: 'repeat(6, 1fr)' },
+        gap: 2,
+        mb: 3 
+      }}>
+        <Card sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+          <CardContent sx={{ p: 2.5, textAlign: 'center' }}>
+            <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'rgba(22, 163, 74, 0.1)', display: 'inline-flex', mb: 1 }}>
+              <BookOpen size={24} color="#16a34a" />
+            </Box>
+            <Typography variant="h4" fontWeight="bold" color="#16a34a">{stats.classesCount}</Typography>
+            <Typography variant="body2" color="text.secondary">Classes</Typography>
+          </CardContent>
+        </Card>
+
+        <Card sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+          <CardContent sx={{ p: 2.5, textAlign: 'center' }}>
+            <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'rgba(37, 99, 235, 0.1)', display: 'inline-flex', mb: 1 }}>
+              <Users size={24} color="#2563eb" />
+            </Box>
+            <Typography variant="h4" fontWeight="bold" color="#2563eb">{stats.studentsCount}</Typography>
+            <Typography variant="body2" color="text.secondary">Students</Typography>
+          </CardContent>
+        </Card>
+
+        <Card sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+          <CardContent sx={{ p: 2.5, textAlign: 'center' }}>
+            <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'rgba(124, 58, 237, 0.1)', display: 'inline-flex', mb: 1 }}>
+              <ClipboardList size={24} color="#7c3aed" />
+            </Box>
+            <Typography variant="h4" fontWeight="bold" color="#7c3aed">{stats.quizzesCount}</Typography>
+            <Typography variant="body2" color="text.secondary">Quizzes</Typography>
+          </CardContent>
+        </Card>
+
+        <Card sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+          <CardContent sx={{ p: 2.5, textAlign: 'center' }}>
+            <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'rgba(234, 88, 12, 0.1)', display: 'inline-flex', mb: 1 }}>
+              <FileText size={24} color="#ea580c" />
+            </Box>
+            <Typography variant="h4" fontWeight="bold" color="#ea580c">{stats.assignmentsCount}</Typography>
+            <Typography variant="body2" color="text.secondary">Assignments</Typography>
+          </CardContent>
+        </Card>
+
+        <Card sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+          <CardContent sx={{ p: 2.5, textAlign: 'center' }}>
+            <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'rgba(6, 182, 212, 0.1)', display: 'inline-flex', mb: 1 }}>
+              <GraduationCap size={24} color="#0891b2" />
+            </Box>
+            <Typography variant="h4" fontWeight="bold" color="#0891b2">{stats.examsCount}</Typography>
+            <Typography variant="body2" color="text.secondary">Exams</Typography>
+          </CardContent>
+        </Card>
+
+        <Card sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+          <CardContent sx={{ p: 2.5, textAlign: 'center' }}>
+            <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'rgba(220, 38, 38, 0.1)', display: 'inline-flex', mb: 1 }}>
+              <AlertCircle size={24} color="#dc2626" />
+            </Box>
+            <Typography variant="h4" fontWeight="bold" color="#dc2626">{stats.pendingSubmissions}</Typography>
+            <Typography variant="body2" color="text.secondary">Pending</Typography>
+          </CardContent>
+        </Card>
+      </Box>
 
       {/* Quick Actions */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6} lg={3}>
-          <Card
-            component="a"
-            href="/teacher/quiz/create-quiz"
-            sx={{
-              textDecoration: 'none',
-              border: '2px solid #16a34a',
-              height: '100%',
-              transition: 'all 0.2s',
-              '&:hover': {
-                bgcolor: 'rgba(22, 163, 74, 0.05)',
-                transform: 'translateY(-2px)',
-                boxShadow: 2,
-              },
-            }}
-          >
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Box
-                  sx={{
-                    p: 1.5,
-                    borderRadius: 2,
-                    bgcolor: 'rgba(22, 163, 74, 0.1)',
-                    border: '2px solid #16a34a',
-                  }}
-                >
-                  <Plus size={24} color="#16a34a" />
-                </Box>
-                <Box>
-                  <Typography variant="body1" fontWeight={600} color="#16a34a">
-                    Create Quiz
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Add new quiz
-                  </Typography>
-                </Box>
+      <Box sx={{ 
+        display: 'grid', 
+        gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
+        gap: 2,
+        mb: 3 
+      }}>
+        <Link href="/teacher/quiz/create-quiz" style={{ textDecoration: 'none' }}>
+          <Card sx={{ 
+            borderRadius: 2, 
+            border: '2px solid #16a34a',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            '&:hover': { bgcolor: 'rgba(22, 163, 74, 0.05)', transform: 'translateY(-2px)', boxShadow: 2 },
+          }}>
+            <CardContent sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'rgba(22, 163, 74, 0.1)' }}>
+                <Plus size={20} color="#16a34a" />
+              </Box>
+              <Box>
+                <Typography variant="body1" fontWeight={600} color="#16a34a">Create Quiz</Typography>
+                <Typography variant="caption" color="text.secondary">Add new quiz</Typography>
               </Box>
             </CardContent>
           </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} lg={3}>
-          <Card
-            component="a"
-            href="/teacher/quiz/create-assignment"
-            sx={{
-              textDecoration: 'none',
-              border: '2px solid #2563eb',
-              height: '100%',
-              transition: 'all 0.2s',
-              '&:hover': {
-                bgcolor: 'rgba(37, 99, 235, 0.05)',
-                transform: 'translateY(-2px)',
-                boxShadow: 2,
-              },
-            }}
-          >
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Box
-                  sx={{
-                    p: 1.5,
-                    borderRadius: 2,
-                    bgcolor: 'rgba(37, 99, 235, 0.1)',
-                    border: '2px solid #2563eb',
-                  }}
-                >
-                  <FileText size={24} color="#2563eb" />
-                </Box>
-                <Box>
-                  <Typography variant="body1" fontWeight={600} color="#2563eb">
-                    Create Assignment
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Add new assignment
-                  </Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} lg={3}>
-          <Card
-            component="a"
-            href="/teacher/group-class"
-            sx={{
-              textDecoration: 'none',
-              border: '2px solid #7c3aed',
-              height: '100%',
-              transition: 'all 0.2s',
-              '&:hover': {
-                bgcolor: 'rgba(124, 58, 237, 0.05)',
-                transform: 'translateY(-2px)',
-                boxShadow: 2,
-              },
-            }}
-          >
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Box
-                  sx={{
-                    p: 1.5,
-                    borderRadius: 2,
-                    bgcolor: 'rgba(124, 58, 237, 0.1)',
-                    border: '2px solid #7c3aed',
-                  }}
-                >
-                  <BookOpen size={24} color="#7c3aed" />
-                </Box>
-                <Box>
-                  <Typography variant="body1" fontWeight={600} color="#7c3aed">
-                    Manage Classes
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    View all classes
-                  </Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} lg={3}>
-          <Card
-            component="a"
-            href="/teacher/quiz"
-            sx={{
-              textDecoration: 'none',
-              border: '2px solid #ea580c',
-              height: '100%',
-              transition: 'all 0.2s',
-              '&:hover': {
-                bgcolor: 'rgba(234, 88, 12, 0.05)',
-                transform: 'translateY(-2px)',
-                boxShadow: 2,
-              },
-            }}
-          >
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Box
-                  sx={{
-                    p: 1.5,
-                    borderRadius: 2,
-                    bgcolor: 'rgba(234, 88, 12, 0.1)',
-                    border: '2px solid #ea580c',
-                  }}
-                >
-                  <BarChart3 size={24} color="#ea580c" />
-                </Box>
-                <Box>
-                  <Typography variant="body1" fontWeight={600} color="#ea580c">
-                    View Materials
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    All quizzes & assignments
-                  </Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+        </Link>
 
-      {/* System Activity Stats */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent sx={{ p: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-            <Box
-              sx={{
-                p: 1,
-                borderRadius: 1.5,
-                bgcolor: 'rgba(99, 102, 241, 0.1)',
-                border: '2px solid #6366f1',
-              }}
-            >
-              <Activity size={20} color="#6366f1" />
+        <Link href="/teacher/quiz/create-assignment" style={{ textDecoration: 'none' }}>
+          <Card sx={{ 
+            borderRadius: 2, 
+            border: '2px solid #2563eb',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            '&:hover': { bgcolor: 'rgba(37, 99, 235, 0.05)', transform: 'translateY(-2px)', boxShadow: 2 },
+          }}>
+            <CardContent sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'rgba(37, 99, 235, 0.1)' }}>
+                <FileText size={20} color="#2563eb" />
+              </Box>
+              <Box>
+                <Typography variant="body1" fontWeight={600} color="#2563eb">Create Assignment</Typography>
+                <Typography variant="caption" color="text.secondary">Add new task</Typography>
+              </Box>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/teacher/group-class" style={{ textDecoration: 'none' }}>
+          <Card sx={{ 
+            borderRadius: 2, 
+            border: '2px solid #7c3aed',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            '&:hover': { bgcolor: 'rgba(124, 58, 237, 0.05)', transform: 'translateY(-2px)', boxShadow: 2 },
+          }}>
+            <CardContent sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'rgba(124, 58, 237, 0.1)' }}>
+                <BookOpen size={20} color="#7c3aed" />
+              </Box>
+              <Box>
+                <Typography variant="body1" fontWeight={600} color="#7c3aed">Manage Classes</Typography>
+                <Typography variant="caption" color="text.secondary">View all classes</Typography>
+              </Box>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/teacher/grades" style={{ textDecoration: 'none' }}>
+          <Card sx={{ 
+            borderRadius: 2, 
+            border: '2px solid #ea580c',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            '&:hover': { bgcolor: 'rgba(234, 88, 12, 0.05)', transform: 'translateY(-2px)', boxShadow: 2 },
+          }}>
+            <CardContent sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'rgba(234, 88, 12, 0.1)' }}>
+                <BarChart3 size={20} color="#ea580c" />
+              </Box>
+              <Box>
+                <Typography variant="body1" fontWeight={600} color="#ea580c">View Grades</Typography>
+                <Typography variant="caption" color="text.secondary">Student grades</Typography>
+              </Box>
+            </CardContent>
+          </Card>
+        </Link>
+      </Box>
+
+      {/* Main Content Grid */}
+      <Box sx={{ 
+        display: 'grid', 
+        gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' },
+        gap: 3,
+        mb: 3 
+      }}>
+        {/* Recent Activity */}
+        <Card sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+          <CardContent sx={{ p: 0 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'rgba(37, 99, 235, 0.1)' }}>
+                  <Activity size={18} color="#2563eb" />
+                </Box>
+                <Typography variant="subtitle1" fontWeight="bold">Recent Activity</Typography>
+              </Box>
+              <Link href="/teacher/quiz" style={{ textDecoration: 'none' }}>
+                <Typography variant="body2" color="primary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  View All <ArrowRight size={14} />
+                </Typography>
+              </Link>
             </Box>
-            <Typography variant="h6" fontWeight="bold">
-              System Activity
-            </Typography>
-          </Box>
-          <Grid container spacing={2}>
-            {activityStats.map((stat, index) => (
-              <Grid item xs={12} sm={6} md={3} key={index}>
-                <Card
-                  variant="outlined"
-                  sx={{
-                    border: '2px solid',
-                    borderColor: stat.color,
-                    transition: 'all 0.2s',
-                    '&:hover': {
-                      bgcolor: stat.bgColor,
-                      transform: 'translateY(-2px)',
-                      boxShadow: 2,
-                    },
-                  }}
-                >
-                  <CardContent sx={{ p: 2.5 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Box sx={{ maxHeight: 320, overflow: 'auto' }}>
+              {recentActivity.length > 0 ? (
+                <Box sx={{ p: 1.5 }}>
+                  {recentActivity.slice(0, 6).map((activity) => (
+                    <Box
+                      key={activity.id}
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 2,
+                        p: 1.5,
+                        borderRadius: 2,
+                        mb: 1,
+                        bgcolor: 'grey.50',
+                        '&:hover': { bgcolor: 'grey.100' },
+                        '&:last-child': { mb: 0 },
+                      }}
+                    >
                       <Box
                         sx={{
-                          p: 1.5,
-                          borderRadius: 2,
-                          bgcolor: stat.bgColor,
-                          border: `2px solid ${stat.color}`,
+                          p: 1,
+                          borderRadius: 1.5,
+                          bgcolor: activity.type === 'exam' ? 'rgba(22, 163, 74, 0.1)' : activity.type === 'quiz' ? 'rgba(37, 99, 235, 0.1)' : 'rgba(234, 88, 12, 0.1)',
                         }}
                       >
-                        <stat.icon size={24} color={stat.color} />
+                        {activity.type === 'exam' ? (
+                          <GraduationCap size={16} color="#16a34a" />
+                        ) : activity.type === 'quiz' ? (
+                          <ClipboardList size={16} color="#2563eb" />
+                        ) : (
+                          <FileText size={16} color="#ea580c" />
+                        )}
                       </Box>
-                      <Box>
-                        <Typography variant="h4" fontWeight="bold" sx={{ color: stat.color }}>
-                          {stat.value}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary" fontWeight={500}>
-                          {stat.title}
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography variant="body2" fontWeight={600} noWrap>{activity.title}</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {format(new Date(activity.created_at), 'MMM d, yyyy')}
                         </Typography>
                       </Box>
+                      <Chip
+                        label={activity.type}
+                        size="small"
+                        sx={{
+                          height: 22,
+                          fontSize: '0.65rem',
+                          fontWeight: 600,
+                          textTransform: 'capitalize',
+                          bgcolor: activity.type === 'exam' ? 'rgba(22, 163, 74, 0.1)' : activity.type === 'quiz' ? 'rgba(37, 99, 235, 0.1)' : 'rgba(234, 88, 12, 0.1)',
+                          color: activity.type === 'exam' ? '#16a34a' : activity.type === 'quiz' ? '#2563eb' : '#ea580c',
+                        }}
+                      />
                     </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
-            ))}
-          </Grid>
+                  ))}
+                </Box>
+              ) : (
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 6 }}>
+                  <Typography color="text.secondary">No recent activity</Typography>
+                </Box>
+              )}
+            </Box>
+          </CardContent>
+        </Card>
+
+        {/* My Classes */}
+        <Card sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+          <CardContent sx={{ p: 0 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'rgba(22, 163, 74, 0.1)' }}>
+                  <BookOpen size={18} color="#16a34a" />
+                </Box>
+                <Typography variant="subtitle1" fontWeight="bold">My Classes</Typography>
+              </Box>
+              <Link href="/teacher/group-class" style={{ textDecoration: 'none' }}>
+                <Typography variant="body2" color="primary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  View All <ArrowRight size={14} />
+                </Typography>
+              </Link>
+            </Box>
+            <Box sx={{ maxHeight: 320, overflow: 'auto' }}>
+              {classData.length > 0 ? (
+                <Box sx={{ p: 1.5 }}>
+                  {classData.slice(0, 5).map((cls) => {
+                    const studentCount = cls.class_students?.length || cls.class_students?.[0]?.count || 0
+                    return (
+                      <Box
+                        key={cls.id}
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 2,
+                          p: 1.5,
+                          borderRadius: 2,
+                          mb: 1,
+                          bgcolor: 'grey.50',
+                          '&:hover': { bgcolor: 'grey.100' },
+                          '&:last-child': { mb: 0 },
+                        }}
+                      >
+                        <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'rgba(22, 163, 74, 0.1)' }}>
+                          <BookOpen size={18} color="#16a34a" />
+                        </Box>
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Typography variant="body2" fontWeight={600} noWrap>{cls.subject}</Typography>
+                          <Typography variant="caption" color="text.secondary">{cls.class_name}</Typography>
+                        </Box>
+                        <Box sx={{ textAlign: 'right' }}>
+                          <Typography variant="body2" fontWeight={600} color="#16a34a">{studentCount}</Typography>
+                          <Typography variant="caption" color="text.secondary">students</Typography>
+                        </Box>
+                      </Box>
+                    )
+                  })}
+                </Box>
+              ) : (
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', py: 6 }}>
+                  <Typography color="text.secondary" sx={{ mb: 1 }}>No classes created yet</Typography>
+                  <Link href="/teacher/group-class" style={{ textDecoration: 'none' }}>
+                    <Typography variant="body2" color="primary">Create your first class</Typography>
+                  </Link>
+                </Box>
+              )}
+            </Box>
+          </CardContent>
+        </Card>
+      </Box>
+
+      {/* Grading Progress */}
+      <Card sx={{ mb: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+        <CardContent sx={{ p: 2.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'rgba(124, 58, 237, 0.1)' }}>
+                <CheckCircle size={18} color="#7c3aed" />
+              </Box>
+              <Typography variant="subtitle1" fontWeight="bold">Grading Progress</Typography>
+            </Box>
+            <Typography variant="body2" color="text.secondary">
+              {stats.pendingSubmissions} submissions pending
+            </Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Box sx={{ flex: 1 }}>
+              <LinearProgress 
+                variant="determinate" 
+                value={gradedPercentage} 
+                sx={{ 
+                  height: 10, 
+                  borderRadius: 5,
+                  bgcolor: 'grey.200',
+                  '& .MuiLinearProgress-bar': { bgcolor: '#16a34a', borderRadius: 5 }
+                }} 
+              />
+            </Box>
+            <Typography variant="body2" fontWeight={600} color="#16a34a">{gradedPercentage}%</Typography>
+          </Box>
         </CardContent>
       </Card>
 
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        {/* Recent Activity */}
-        <Grid item xs={12} lg={6}>
-          <Card sx={{ height: '100%' }}>
-            <CardContent sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-                <Box
-                  sx={{
-                    p: 1,
-                    borderRadius: 1.5,
-                    bgcolor: 'rgba(37, 99, 235, 0.1)',
-                    border: '2px solid #2563eb',
-                  }}
-                >
-                  <Activity size={20} color="#2563eb" />
-                </Box>
-                <Typography variant="h6" fontWeight="bold">
-                  Recent Activity
-                </Typography>
+      {/* Recent Submissions */}
+      <Card sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+        <CardContent sx={{ p: 0 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'rgba(22, 163, 74, 0.1)' }}>
+                <Clock size={18} color="#16a34a" />
               </Box>
-              <Box sx={{ flex: 1, overflow: 'auto' }}>
-                {recentActivity.length > 0 ? (
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                    {recentActivity.map((activity) => (
-                      <Card
-                        key={activity.id}
-                        variant="outlined"
-                        sx={{
-                          border: '1px solid',
-                          borderColor: 'divider',
-                          transition: 'all 0.2s',
-                          '&:hover': {
-                            bgcolor:
-                              activity.type === 'exam'
-                                ? 'rgba(22, 163, 74, 0.05)'
-                                : activity.type === 'quiz'
-                                ? 'rgba(37, 99, 235, 0.05)'
-                                : 'rgba(245, 158, 11, 0.05)',
-                            borderColor:
-                              activity.type === 'exam'
-                                ? '#16a34a'
-                                : activity.type === 'quiz'
-                                ? '#2563eb'
-                                : '#f59e0b',
-                          },
-                        }}
-                      >
-                        <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                          <Box sx={{ display: 'flex', alignItems: 'start', gap: 2 }}>
-                            <Box
-                              sx={{
-                                p: 1,
-                                borderRadius: 1.5,
-                                bgcolor:
-                                  activity.type === 'exam'
-                                    ? 'rgba(22, 163, 74, 0.1)'
-                                    : activity.type === 'quiz'
-                                    ? 'rgba(37, 99, 235, 0.1)'
-                                    : 'rgba(245, 158, 11, 0.1)',
-                                border: '2px solid',
-                                borderColor:
-                                  activity.type === 'exam'
-                                    ? '#16a34a'
-                                    : activity.type === 'quiz'
-                                    ? '#2563eb'
-                                    : '#f59e0b',
-                              }}
-                            >
-                              {activity.type === 'exam' ? (
-                                <FileText size={16} color="#16a34a" />
-                              ) : activity.type === 'quiz' ? (
-                                <ClipboardList size={16} color="#2563eb" />
-                              ) : (
-                                <CheckCircle size={16} color="#f59e0b" />
-                              )}
-                            </Box>
-                            <Box sx={{ flex: 1, minWidth: 0 }}>
-                              <Typography variant="body2" fontWeight={600} noWrap>
-                                {activity.title}
-                              </Typography>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
-                                <Typography variant="caption" color="text.secondary">
-                                  {format(new Date(activity.created_at), 'MMM d, HH:mm')}
-                                </Typography>
-                                {activity.duration_minutes && (
-                                  <>
-                                    <Typography variant="caption" color="text.secondary">
-                                      •
-                                    </Typography>
-                                    <Typography variant="caption" color="text.secondary">
-                                      {activity.duration_minutes} min
-                                    </Typography>
-                                  </>
-                                )}
-                              </Box>
-                            </Box>
-                            <Chip
-                              label={activity.type}
-                              size="small"
-                              sx={{
-                                height: 22,
-                                fontSize: '0.7rem',
-                                fontWeight: 600,
-                                bgcolor:
-                                  activity.type === 'exam'
-                                    ? 'rgba(22, 163, 74, 0.1)'
-                                    : activity.type === 'quiz'
-                                    ? 'rgba(37, 99, 235, 0.1)'
-                                    : 'rgba(245, 158, 11, 0.1)',
-                                color:
-                                  activity.type === 'exam'
-                                    ? '#16a34a'
-                                    : activity.type === 'quiz'
-                                    ? '#2563eb'
-                                    : '#f59e0b',
-                              }}
-                            />
-                          </Box>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </Box>
-                ) : (
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      height: '100%',
-                      minHeight: 200,
-                    }}
-                  >
-                    <Typography color="text.secondary">No recent activity</Typography>
-                  </Box>
-                )}
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Class Enrollment Chart */}
-        <Grid item xs={12} lg={6}>
-          <Card sx={{ height: '100%' }}>
-            <CardContent sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
-                <Box
-                  sx={{
-                    p: 1,
-                    borderRadius: 1.5,
-                    bgcolor: 'rgba(22, 163, 74, 0.1)',
-                    border: '2px solid #16a34a',
-                  }}
-                >
-                  <TrendingUp size={24} color="#16a34a" />
-                </Box>
-                <Typography variant="h6" fontWeight="bold">
-                  Student Enrollment by Class
-                </Typography>
-              </Box>
-              {chartData.length > 0 ? (
-                <Box sx={{ width: '100%', overflow: 'auto' }}>
-                  <ChartDataProvider
-                    height={400}
-                    series={[
-                      {
-                        type: 'bar',
-                        data: chartData.map((d) => d.students),
-                        label: 'Students Enrolled',
-                        color: '#16a34a',
-                      },
-                    ]}
-                    xAxis={[
-                      {
-                        scaleType: 'band',
-                        data: chartData.map((d) => d.class),
-                        label: 'Class Code',
-                      },
-                    ]}
-                    yAxis={[{ label: 'Number of Students' }]}
-                    margin={{ top: 40, bottom: 80, left: 70, right: 30 }}
-                  >
-                    <ChartsLegend />
-                    <ChartsTooltip />
-                    <ChartsSurface>
-                      <ChartsXAxis />
-                      <ChartsYAxis />
-                      <BarPlot />
-                      <ChartsAxisHighlight x="band" />
-                    </ChartsSurface>
-                  </ChartDataProvider>
-                </Box>
-              ) : (
-                <Box
-                  sx={{
-                    height: 400,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <Typography color="text.secondary">
-                    No class data available
-                  </Typography>
-                </Box>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
-      {/* Recent Submissions - Full Width */}
-      <Card>
-        <CardContent sx={{ p: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-            <Box
-              sx={{
-                p: 1,
-                borderRadius: 1.5,
-                bgcolor: 'rgba(22, 163, 74, 0.1)',
-                border: '2px solid #16a34a',
-              }}
-            >
-              <FileText size={20} color="#16a34a" />
+              <Typography variant="subtitle1" fontWeight="bold">Recent Submissions</Typography>
             </Box>
-            <Typography variant="h6" fontWeight="bold">
-              Recent Submissions
-            </Typography>
           </Box>
-          <TableContainer component={Paper} variant="outlined">
-            <Table>
+          <TableContainer>
+            <Table size="small">
               <TableHead>
-                <TableRow sx={{ bgcolor: 'grey.100' }}>
-                  <TableCell sx={{ fontWeight: 'bold' }}>Student</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold' }}>Class</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold' }}>Material</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold' }}>Type</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold' }}>Submitted At</TableCell>
-                  <TableCell align="center" sx={{ fontWeight: 'bold' }}>
-                    Score
-                  </TableCell>
-                  <TableCell align="center" sx={{ fontWeight: 'bold' }}>
-                    Status
-                  </TableCell>
+                <TableRow sx={{ bgcolor: 'grey.50' }}>
+                  <TableCell sx={{ fontWeight: 600, py: 1.5 }}>Student</TableCell>
+                  <TableCell sx={{ fontWeight: 600, py: 1.5 }}>Material</TableCell>
+                  <TableCell sx={{ fontWeight: 600, py: 1.5 }}>Type</TableCell>
+                  <TableCell sx={{ fontWeight: 600, py: 1.5 }}>Submitted</TableCell>
+                  <TableCell align="center" sx={{ fontWeight: 600, py: 1.5 }}>Score</TableCell>
+                  <TableCell align="center" sx={{ fontWeight: 600, py: 1.5 }}>Status</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {recentSubmissions.length > 0 ? (
-                  recentSubmissions.map((submission) => (
-                    <TableRow
-                      key={submission.id}
-                      hover
-                      sx={{
-                        '&:hover': {
-                          bgcolor: 'rgba(22, 163, 74, 0.02)',
-                        },
-                      }}
-                    >
-                      <TableCell>
+                  recentSubmissions.slice(0, 8).map((submission) => (
+                    <TableRow key={submission.id} hover>
+                      <TableCell sx={{ py: 1.5 }}>
                         <Typography variant="body2" fontWeight={500}>
                           {submission.students?.student_name || 'N/A'}
                         </Typography>
                       </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" color="text.secondary">
-                          {submission.class_materials?.group_classes?.class_name || 'N/A'}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2">
+                      <TableCell sx={{ py: 1.5 }}>
+                        <Typography variant="body2" noWrap sx={{ maxWidth: 180 }}>
                           {submission.class_materials?.title || 'N/A'}
                         </Typography>
                       </TableCell>
-                      <TableCell>
+                      <TableCell sx={{ py: 1.5 }}>
                         <Chip
                           label={submission.class_materials?.material_type || 'N/A'}
                           size="small"
                           sx={{
                             height: 22,
-                            fontSize: '0.7rem',
+                            fontSize: '0.65rem',
                             fontWeight: 600,
-                            bgcolor:
-                              submission.class_materials?.material_type === 'quiz'
-                                ? 'rgba(22, 163, 74, 0.1)'
-                                : submission.class_materials?.material_type === 'exam'
-                                ? 'rgba(37, 99, 235, 0.1)'
-                                : 'rgba(245, 158, 11, 0.1)',
-                            color:
-                              submission.class_materials?.material_type === 'quiz'
-                                ? '#16a34a'
-                                : submission.class_materials?.material_type === 'exam'
-                                ? '#2563eb'
-                                : '#f59e0b',
+                            textTransform: 'capitalize',
+                            bgcolor: submission.class_materials?.material_type === 'quiz' ? 'rgba(37, 99, 235, 0.1)' : 'rgba(234, 88, 12, 0.1)',
+                            color: submission.class_materials?.material_type === 'quiz' ? '#2563eb' : '#ea580c',
                           }}
                         />
                       </TableCell>
-                      <TableCell>
+                      <TableCell sx={{ py: 1.5 }}>
                         <Typography variant="body2" color="text.secondary">
-                          {format(new Date(submission.submitted_at), 'MMM d, yyyy HH:mm')}
+                          {format(new Date(submission.submitted_at), 'MMM d, HH:mm')}
                         </Typography>
                       </TableCell>
-                      <TableCell align="center">
+                      <TableCell align="center" sx={{ py: 1.5 }}>
                         {submission.is_graded ? (
                           <Typography variant="body2" fontWeight={600}>
                             {submission.score}/{submission.max_score}
                           </Typography>
                         ) : (
-                          <Typography variant="body2" color="text.secondary">
-                            Not graded
-                          </Typography>
+                          <Typography variant="body2" color="text.secondary">—</Typography>
                         )}
                       </TableCell>
-                      <TableCell align="center">
+                      <TableCell align="center" sx={{ py: 1.5 }}>
                         <Chip
                           label={submission.is_graded ? 'Graded' : 'Pending'}
                           size="small"
-                          color={submission.is_graded ? 'success' : 'warning'}
-                          sx={{ fontWeight: 600, fontSize: '0.7rem' }}
+                          sx={{
+                            height: 22,
+                            fontSize: '0.65rem',
+                            fontWeight: 600,
+                            bgcolor: submission.is_graded ? 'rgba(22, 163, 74, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                            color: submission.is_graded ? '#16a34a' : '#f59e0b',
+                          }}
                         />
                       </TableCell>
                     </TableRow>
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={7} align="center">
-                      <Typography color="text.secondary" py={4}>
-                        No recent submissions
-                      </Typography>
+                    <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
+                      <Typography color="text.secondary">No submissions yet</Typography>
                     </TableCell>
                   </TableRow>
                 )}

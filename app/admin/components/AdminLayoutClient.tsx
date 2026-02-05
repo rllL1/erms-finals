@@ -8,8 +8,7 @@ import { useTheme } from '@mui/material/styles'
 import AdminSidebar from './AdminSidebar'
 import AdminHeader from './AdminHeader'
 import FloatingChatButton from '@/app/components/FloatingChatButton'
-
-const drawerWidth = 240
+import MobileBottomNav from '@/app/components/MobileBottomNav'
 
 const Main = styled('main', { shouldForwardProp: (prop) => prop !== 'open' })<{
   open?: boolean
@@ -24,9 +23,11 @@ const Main = styled('main', { shouldForwardProp: (prop) => prop !== 'open' })<{
   width: '100%',
   [theme.breakpoints.down('md')]: {
     padding: theme.spacing(2),
+    paddingBottom: theme.spacing(10), // Space for bottom nav
   },
   [theme.breakpoints.down('sm')]: {
     padding: theme.spacing(1.5),
+    paddingBottom: theme.spacing(10), // Space for bottom nav
   },
   ...(open && {
     transition: theme.transitions.create('margin', {
@@ -73,8 +74,9 @@ export default function AdminLayoutClient({ children, email }: AdminLayoutClient
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', overflow: 'hidden' }}>
-      <AdminHeader email={email} open={open} onMenuClick={handleDrawerToggle} />
-      <AdminSidebar open={open} onClose={handleDrawerToggle} />
+      <AdminHeader email={email} open={open} onMenuClick={handleDrawerToggle} isMobile={isMobile} />
+      {/* Hide sidebar on mobile - use bottom nav instead */}
+      {!isMobile && <AdminSidebar open={open} onClose={handleDrawerToggle} />}
       <Main open={open}>
         <DrawerHeader />
         <Box sx={{ 
@@ -85,7 +87,10 @@ export default function AdminLayoutClient({ children, email }: AdminLayoutClient
           {children}
         </Box>
       </Main>
-      <FloatingChatButton role="admin" />
+      {/* Hide floating chat on mobile since we have bottom nav */}
+      {!isMobile && <FloatingChatButton role="admin" />}
+      {/* Mobile Bottom Navigation */}
+      <MobileBottomNav role="admin" />
     </Box>
   )
 }

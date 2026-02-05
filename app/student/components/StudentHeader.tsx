@@ -55,9 +55,10 @@ interface StudentHeaderProps {
   name: string
   open: boolean
   onMenuClick: () => void
+  isMobile?: boolean
 }
 
-export default function StudentHeader({ name, open, onMenuClick }: StudentHeaderProps) {
+export default function StudentHeader({ name, open, onMenuClick, isMobile: isMobileLayout }: StudentHeaderProps) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
   const [notifAnchorEl, setNotifAnchorEl] = useState<null | HTMLElement>(null)
   const [materials, setMaterials] = useState<any[]>([])
@@ -116,15 +117,18 @@ export default function StudentHeader({ name, open, onMenuClick }: StudentHeader
   return (
     <AppBar position="fixed" open={open}>
       <Toolbar sx={{ minHeight: { xs: '56px', sm: '64px' } }}>
-        <IconButton
-          color="inherit"
-          aria-label="toggle drawer"
-          onClick={onMenuClick}
-          edge="start"
-          sx={{ mr: { xs: 1, sm: 2 } }}
-        >
-          <MenuIcon />
-        </IconButton>
+        {/* Hide menu button on mobile since we use bottom nav */}
+        {!isMobileLayout && (
+          <IconButton
+            color="inherit"
+            aria-label="toggle drawer"
+            onClick={onMenuClick}
+            edge="start"
+            sx={{ mr: { xs: 1, sm: 2 } }}
+          >
+            <MenuIcon />
+          </IconButton>
+        )}
         
         <div style={{ flexGrow: 1 }} />
         

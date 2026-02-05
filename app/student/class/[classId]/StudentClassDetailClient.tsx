@@ -18,6 +18,8 @@ import {
   TableHead,
   TableRow,
   Paper,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material'
 import { ArrowLeft, FileText, CheckCircle, Clock, Play } from 'lucide-react'
 import type { GroupClass, ClassMaterial } from '@/lib/types'
@@ -36,6 +38,8 @@ export default function StudentClassDetailClient({
   student: Student
 }) {
   const router = useRouter()
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
   const [classData, setClassData] = useState<GroupClass | null>(null)
   const [materials, setMaterials] = useState<ClassMaterial[]>([])
   const [loading, setLoading] = useState(true)
@@ -57,7 +61,7 @@ export default function StudentClassDetailClient({
       if (response.ok) {
         setClassData(data.class)
       }
-    } catch (err) {
+    } catch (_err) {
       setError('Failed to fetch class details')
     } finally {
       setLoading(false)
@@ -151,11 +155,12 @@ export default function StudentClassDetailClient({
   }
 
   return (
-    <Box sx={{ maxWidth: '1536px', mx: 'auto', mt: 4, mb: 4, px: 2 }}>
+    <Box sx={{ maxWidth: '1536px', mx: 'auto', mt: { xs: 2, sm: 4 }, mb: 4, px: { xs: 1, sm: 2 } }}>
       <Button
-        startIcon={<ArrowLeft />}
+        startIcon={<ArrowLeft size={18} />}
         onClick={() => router.push('/student/class')}
         sx={{ mb: 2 }}
+        size={isMobile ? 'small' : 'medium'}
       >
         Back to My Classes
       </Button>
@@ -167,12 +172,12 @@ export default function StudentClassDetailClient({
       )}
 
       <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Typography variant="h4" gutterBottom>
+        <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+          <Typography variant={isMobile ? 'h5' : 'h4'} gutterBottom>
             {classData.class_name}
           </Typography>
-          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
-            <Chip label={classData.subject} color="primary" />
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
+            <Chip label={classData.subject} color="primary" size={isMobile ? 'small' : 'medium'} />
           </Box>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
             Teacher: {classData.teacher_name}
@@ -183,19 +188,95 @@ export default function StudentClassDetailClient({
         </CardContent>
       </Card>
 
-      <Typography variant="h5" gutterBottom sx={{ mb: 2 }}>
+      <Typography variant={isMobile ? 'h6' : 'h5'} gutterBottom sx={{ mb: 2 }}>
         Quizzes & Assignments
       </Typography>
 
       {materials.length === 0 ? (
         <Card>
           <CardContent sx={{ textAlign: 'center', py: 4 }}>
-            <FileText size={48} style={{ margin: '0 auto', color: '#9ca3af' }} />
+            <FileText size={isMobile ? 36 : 48} style={{ margin: '0 auto', color: '#9ca3af' }} />
             <Typography color="text.secondary" sx={{ mt: 2 }}>
               No materials available yet
             </Typography>
           </CardContent>
         </Card>
+      ) : isMobile ? (
+        /* Mobile Card View */
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {materials.map((material) => (
+            <Card 
+              key={material.id}
+              sx={{ 
+                borderLeft: 4, 
+                borderColor: material.material_type === 'quiz' ? 'primary.main' : 'secondary.main',
+                bgcolor: isOverdue(material.due_date) && !material.submission
+                  ? 'rgba(239, 68, 68, 0.05)'
+                  : isDueSoon(material.due_date) && !material.submission
+                  ? 'rgba(251, 191, 36, 0.05)'
+                  : 'transparent',
+              }}
+            >
+              <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                  <Typography fontWeight="medium" sx={{ flex: 1, pr: 1 }}>
+                    {material.title}
+                  </Typography>
+                  <Chip
+                    label={material.material_type}
+                    size="small"
+                    color={material.material_type === 'quiz' ? 'primary' : 'secondary'}
+                  />
+                </Box>
+                
+                {material.description && (
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                    {material.description}
+                  </Typography>
+                )}
+                
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+                  {material.due_date && (
+                    <Typography variant="caption" color="text.secondary">
+                      Due: {new Date(material.due_date).toLocaleDateString()}
+                    </Typography>
+                  )}
+                  {material.time_limit && (
+                    <Typography variant="caption" color="text.secondary">
+                      • {material.time_limit} min
+                    </Typography>
+                  )}
+                </Box>
+                
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  {getStatusChip(material)}
+                  {!material.submission ? (
+                    <Button
+                      variant="contained"
+                      size="small"
+                      startIcon={<Play size={14} />}
+                      onClick={() => handleStartMaterial(material)}
+                      sx={{
+                        bgcolor: 'rgb(16, 185, 129)',
+                        '&:hover': { bgcolor: 'rgb(5, 150, 105)' },
+                      }}
+                    >
+                      Start
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      onClick={() => handleStartMaterial(material)}
+                    >
+                      View
+                    </Button>
+                  )}
+                </Box>
+              </CardContent>
+            </Card>
+          ))}
+        </Box>
       ) : (
         <TableContainer component={Paper} variant="outlined">
           <Table>
