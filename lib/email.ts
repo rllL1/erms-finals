@@ -138,7 +138,7 @@ Thank you.
 
   try {
     await transporter.sendMail({
-      from: process.env.SMTP_FROM || '"School Admin" <noreply@school.com>',
+      from: process.env.SMTP_FROM || '"St. Dominic Savio College" <savian_sdsc@yahoo.com>',
       to,
       subject: 'Your Account Has Been Created',
       text: textContent,

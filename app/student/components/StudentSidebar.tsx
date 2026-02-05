@@ -7,7 +7,6 @@ import { usePathname } from 'next/navigation'
 import { styled, useTheme, Theme, CSSObject } from '@mui/material/styles'
 import MuiDrawer from '@mui/material/Drawer'
 import List from '@mui/material/List'
-import Divider from '@mui/material/Divider'
 import IconButton from '@mui/material/IconButton'
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
@@ -17,7 +16,7 @@ import ListItemIcon from '@mui/material/ListItemIcon'
 import ListItemText from '@mui/material/ListItemText'
 import Box from '@mui/material/Box'
 import useMediaQuery from '@mui/material/useMediaQuery'
-import { LayoutDashboard, BookOpen, User } from 'lucide-react'
+import { LayoutDashboard, BookOpen, User, ClipboardList } from 'lucide-react'
 
 const drawerWidth = 240
 const miniDrawerWidth = 70
@@ -75,6 +74,11 @@ const menuItems = [
     name: 'Class',
     href: '/student/class',
     icon: BookOpen,
+  },
+  {
+    name: 'Grades',
+    href: '/student/grades',
+    icon: ClipboardList,
   },
   {
     name: 'Profile',
