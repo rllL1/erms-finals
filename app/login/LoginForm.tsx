@@ -2,19 +2,23 @@
 
 import { useState } from 'react'
 import { login } from '@/lib/actions/auth'
-import { Loader2, AlertCircle } from 'lucide-react'
+import { Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react'
 import Image from 'next/image'
+import Link from 'next/link'
 import Box from '@mui/material/Box'
 import TextField from '@mui/material/TextField'
+import InputAdornment from '@mui/material/InputAdornment'
+import IconButton from '@mui/material/IconButton'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import { useTheme } from '@mui/material/styles'
 
 export default function LoginForm() {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const theme = useTheme()
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
-  const isSmallMobile = useMediaQuery(theme.breakpoints.down('sm'))
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'), { noSsr: true })
+  const isSmallMobile = useMediaQuery(theme.breakpoints.down('sm'), { noSsr: true })
 
   async function handleSubmit(formData: FormData) {
     setIsLoading(true)
@@ -96,25 +100,32 @@ export default function LoginForm() {
                       id="password"
                       name="password"
                       label="Password"
-                      type="password"
+                      type={showPassword ? 'text' : 'password'}
                       required
                       autoComplete="current-password"
                       disabled={isLoading}
                       variant="outlined"
                       size={isSmallMobile ? 'small' : 'medium'}
+                      InputProps={{
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <IconButton
+                              aria-label={showPassword ? 'Hide password' : 'Show password'}
+                              onClick={() => setShowPassword(!showPassword)}
+                              edge="end"
+                              size={isSmallMobile ? 'small' : 'medium'}
+                            >
+                              {showPassword ? (
+                                <EyeOff className={isSmallMobile ? 'w-4 h-4' : 'w-5 h-5'} />
+                              ) : (
+                                <Eye className={isSmallMobile ? 'w-4 h-4' : 'w-5 h-5'} />
+                              )}
+                            </IconButton>
+                          </InputAdornment>
+                        ),
+                      }}
                     />
                   </Box>
-
-                  {/* Forgot Password Link */}
-                  <div className="flex justify-end -mt-3">
-                    <a 
-                      href="#" 
-                      className={`${isSmallMobile ? 'text-xs' : 'text-sm'} text-green-600 hover:text-green-700`}
-                      onClick={(e) => e.preventDefault()}
-                    >
-                      Forgot Password?
-                    </a>
-                  </div>
 
                   {/* Submit Button */}
                   <div className="flex justify-center mt-6">
@@ -134,6 +145,16 @@ export default function LoginForm() {
                     </button>
                   </div>
                 </form>
+
+                {/* Forgot Password Link - Outside form to prevent form submission */}
+                <div className="flex justify-end mt-3">
+                  <Link 
+                    href="/forgot-password" 
+                    className={`${isSmallMobile ? 'text-xs' : 'text-sm'} text-green-600 hover:text-green-700`}
+                  >
+                    Forgot Password?
+                  </Link>
+                </div>
 
                 {/* Footer Text */}
                 <div>

@@ -27,7 +27,7 @@ export async function sendWelcomeEmail({
   userType,
 }: WelcomeEmailParams): Promise<{ success: boolean; error?: string }> {
   const loginUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-  const logoUrl = `${loginUrl}/public/234.png`
+const logoUrl = `${loginUrl}/234.png`
 
   const htmlContent = `
 <!DOCTYPE html>
@@ -45,7 +45,7 @@ export async function sendWelcomeEmail({
           <!-- Header with Logo -->
           <tr>
             <td align="center" style="padding: 40px 40px 20px 40px; background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); border-radius: 12px 12px 0 0;">
-              <img src="${logoUrl}" alt="School Logo" style="width: 120px; height: auto; margin-bottom: 20px;">
+              <img src="${logoUrl}" alt="sdsc" style="width: 120px; height: auto; margin-bottom: 20px;">
               <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 600;">Welcome to St. Dominic Savio College</h1>
             </td>
           </tr>
@@ -138,7 +138,7 @@ Thank you.
 
   try {
     await transporter.sendMail({
-      from: process.env.SMTP_FROM || '"St. Dominic Savio College" <savian_sdsc@yahoo.com>',
+      from: process.env.SMTP_FROM || `"St. Dominic Savio College" <${process.env.SMTP_USER}>`,
       to,
       subject: 'Your Account Has Been Created',
       text: textContent,
@@ -148,6 +148,135 @@ Thank you.
     return { success: true }
   } catch (error) {
     console.error('Failed to send welcome email:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to send email',
+    }
+  }
+}
+
+interface PasswordResetOTPParams {
+  to: string
+  name: string
+  otpCode: string
+}
+
+export async function sendPasswordResetOTP({
+  to,
+  name,
+  otpCode,
+}: PasswordResetOTPParams): Promise<{ success: boolean; error?: string }> {
+  const loginUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+const logoUrl = `${loginUrl}/234.png`
+
+  const htmlContent = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Password Reset Verification Code</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4;">
+  <table role="presentation" style="width: 100%; border-collapse: collapse;">
+    <tr>
+      <td align="center" style="padding: 40px 0;">
+        <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+          <!-- Header with Logo -->
+          <tr>
+            <td align="center" style="padding: 40px 40px 20px 40px; background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); border-radius: 12px 12px 0 0;">
+              <img src="${logoUrl}" alt="sdsc" style="width: 120px; height: auto; margin-bottom: 20px;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 600;">Password Reset Request</h1>
+            </td>
+          </tr>
+          
+          <!-- Main Content -->
+          <tr>
+            <td style="padding: 40px;">
+              <p style="margin: 0 0 20px 0; color: #374151; font-size: 16px; line-height: 1.6;">
+                Hi <strong>${name}</strong>,
+              </p>
+              
+              <p style="margin: 0 0 30px 0; color: #374151; font-size: 16px; line-height: 1.6;">
+                You requested to reset your password. Please use the One-Time Password (OTP) below to verify your identity.
+              </p>
+              
+              <!-- OTP Code Box -->
+              <div style="background-color: #f0f9ff; border: 2px solid #3b82f6; border-radius: 12px; padding: 30px; margin-bottom: 30px; text-align: center;">
+                <p style="margin: 0 0 10px 0; color: #6b7280; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">
+                  Your One-Time Password (OTP)
+                </p>
+                <p style="margin: 0; color: #1e3a8a; font-size: 36px; font-weight: 700; letter-spacing: 8px; font-family: 'Courier New', monospace;">
+                  ${otpCode}
+                </p>
+              </div>
+              
+              <!-- Expiration Notice -->
+              <div style="background-color: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; padding: 16px; margin-bottom: 30px;">
+                <p style="margin: 0; color: #92400e; font-size: 14px; line-height: 1.5; text-align: center;">
+                  ⏰ <strong>This code will expire in 10 minutes.</strong>
+                </p>
+              </div>
+              
+              <!-- Security Notice -->
+              <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+                <p style="margin: 0; color: #991b1b; font-size: 14px; line-height: 1.5;">
+                  ⚠️ <strong>Security Notice:</strong> If you did not request this password reset, please ignore this email. Your account will remain secure.
+                </p>
+              </div>
+              
+              <p style="margin: 0; color: #374151; font-size: 16px; line-height: 1.6;">
+                Thank you.
+              </p>
+            </td>
+          </tr>
+          
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 24px 40px; background-color: #f9fafb; border-radius: 0 0 12px 12px; border-top: 1px solid #e5e7eb;">
+              <p style="margin: 0; color: #6b7280; font-size: 12px; text-align: center; line-height: 1.5;">
+                This is an automated message from the Exam Record Management System.<br>
+                Please do not reply to this email.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+`
+
+  const textContent = `
+Password Reset Verification Code
+
+Hi ${name},
+
+You requested to reset your password.
+
+Your One-Time Password (OTP) is:
+${otpCode}
+
+This code will expire in 10 minutes.
+
+If you did not request this, please ignore this email.
+
+Thank you.
+`
+
+  try {
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM || `"St. Dominic Savio College" <${process.env.SMTP_USER}>`,
+      to,
+      subject: 'Password Reset Verification Code',
+      text: textContent,
+      html: htmlContent,
+    })
+
+    return { success: true }
+  } catch (error) {
+    console.error('Failed to send password reset OTP:', error)
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to send email',

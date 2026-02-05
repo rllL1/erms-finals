@@ -35,10 +35,14 @@ export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
   // Public routes that don't require authentication
-  const publicRoutes = ['/login', '/']
+  const publicRoutes = ['/login', '/', '/forgot-password']
+  
+  // Check if path is a public route or an auth API route
+  const isPublicRoute = publicRoutes.includes(pathname)
+  const isAuthApiRoute = pathname.startsWith('/api/auth/')
 
   // If user is not authenticated and trying to access protected routes
-  if (!user && !publicRoutes.includes(pathname)) {
+  if (!user && !isPublicRoute && !isAuthApiRoute) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
