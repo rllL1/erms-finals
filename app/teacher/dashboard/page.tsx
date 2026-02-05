@@ -89,6 +89,21 @@ export default async function TeacherDashboard() {
     `)
     .eq('teacher_id', teacher.id)
 
+  // Get recent activity (recently created quizzes, exams, assignments)
+  const { data: recentActivity } = await supabase
+    .from('quizzes')
+    .select('id, title, type, created_at, duration_minutes')
+    .eq('teacher_id', teacher.id)
+    .order('created_at', { ascending: false })
+    .limit(10)
+
+  // Get exams count
+  const { count: examsCount } = await supabase
+    .from('quizzes')
+    .select('id', { count: 'exact', head: true })
+    .eq('teacher_id', teacher.id)
+    .eq('type', 'exam')
+
   return (
     <TeacherDashboardClient
       teacher={teacher}
@@ -97,10 +112,12 @@ export default async function TeacherDashboard() {
         studentsCount,
         quizzesCount: quizzesCount || 0,
         assignmentsCount: assignmentsCount || 0,
+        examsCount: examsCount || 0,
         pendingSubmissions: pendingSubmissions || 0,
       }}
       recentSubmissions={recentSubmissions || []}
       classData={classData || []}
+      recentActivity={recentActivity || []}
     />
   )
 }

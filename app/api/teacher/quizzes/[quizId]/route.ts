@@ -89,3 +89,42 @@ export async function DELETE(
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
+
+export async function PUT(
+  request: Request,
+  { params }: { params: Promise<{ quizId: string }> }
+) {
+  try {
+    const { quizId } = await params
+    const body = await request.json()
+
+    if (!quizId) {
+      return NextResponse.json({ error: 'Quiz ID is required' }, { status: 400 })
+    }
+
+    const supabase = await createClient()
+
+    // Update the quiz
+    const { error } = await supabase
+      .from('quizzes')
+      .update({
+        title: body.title,
+        quiz_type: body.quiz_type,
+        description: body.description,
+        start_date: body.start_date,
+        end_date: body.end_date,
+        time_limit: body.time_limit,
+      })
+      .eq('id', quizId)
+
+    if (error) {
+      console.error('Error updating quiz:', error)
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true, message: 'Quiz updated successfully' })
+  } catch (error) {
+    console.error('Error in PUT /api/teacher/quizzes/[quizId]:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}

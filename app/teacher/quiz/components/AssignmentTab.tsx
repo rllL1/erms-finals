@@ -15,8 +15,14 @@ import {
   Paper,
   IconButton,
   Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Divider,
+  Alert,
 } from '@mui/material'
-import { Plus, Eye, Edit, Trash2, Users } from 'lucide-react'
+import { Plus, Eye, Edit, Trash2, Users, X, Calendar, FileText } from 'lucide-react'
 
 interface Assignment {
   id: string
@@ -28,6 +34,7 @@ interface Assignment {
   end_date: string | null
   due_date?: string
   allowed_file_types?: string[]
+  max_file_size?: number
   submission_count?: number
   created_at: string
 }
@@ -37,6 +44,11 @@ export default function AssignmentTab({ teacherId }: { teacherId: string }) {
   const searchParams = useSearchParams()
   const [assignments, setAssignments] = useState<Assignment[]>([])
   const [loading, setLoading] = useState(true)
+  const [viewModalOpen, setViewModalOpen] = useState(false)
+  const [editModalOpen, setEditModalOpen] = useState(false)
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null)
+  const [assignmentToDelete, setAssignmentToDelete] = useState<string | null>(null)
 
   useEffect(() => {
     fetchAssignments()
@@ -67,18 +79,28 @@ export default function AssignmentTab({ teacherId }: { teacherId: string }) {
   }
 
   const handleDelete = async (assignmentId: string) => {
-    if (!confirm('Are you sure you want to delete this assignment?')) return
-
     try {
       const response = await fetch(`/api/teacher/assignments/${assignmentId}`, {
         method: 'DELETE',
       })
       if (response.ok) {
         setAssignments(assignments.filter(a => a.id !== assignmentId))
+        setDeleteModalOpen(false)
+        setAssignmentToDelete(null)
       }
     } catch (error) {
       console.error('Error deleting assignment:', error)
     }
+  }
+
+  const handleView = async (assignment: Assignment) => {
+    setSelectedAssignment(assignment)
+    setViewModalOpen(true)
+  }
+
+  const handleEdit = (assignment: Assignment) => {
+    setSelectedAssignment(assignment)
+    setEditModalOpen(true)
   }
 
   const formatDate = (date: string) => {
@@ -162,13 +184,15 @@ export default function AssignmentTab({ teacherId }: { teacherId: string }) {
                     <IconButton 
                       size="small" 
                       color="primary"
-                      title="View Submissions"
+                      onClick={() => handleView(assignment)}
+                      title="View Details"
                     >
                       <Eye size={18} />
                     </IconButton>
                     <IconButton 
                       size="small" 
                       color="info"
+                      onClick={() => handleEdit(assignment)}
                       title="Edit Assignment"
                     >
                       <Edit size={18} />
@@ -176,7 +200,10 @@ export default function AssignmentTab({ teacherId }: { teacherId: string }) {
                     <IconButton 
                       size="small" 
                       color="error"
-                      onClick={() => handleDelete(assignment.id)}
+                      onClick={() => {
+                        setAssignmentToDelete(assignment.id)
+                        setDeleteModalOpen(true)
+                      }}
                       title="Delete Assignment"
                     >
                       <Trash2 size={18} />
@@ -188,6 +215,174 @@ export default function AssignmentTab({ teacherId }: { teacherId: string }) {
           </TableBody>
         </Table>
       </TableContainer>
+
+      {/* View Modal */}
+      <Dialog 
+        open={viewModalOpen} 
+        onClose={() => setViewModalOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          Assignment Details
+          <IconButton onClick={() => setViewModalOpen(false)} size="small">
+            <X size={20} />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers>
+          {selectedAssignment && (
+            <Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                <FileText size={32} />
+                <Typography variant="h5">
+                  {selectedAssignment.title}
+                </Typography>
+              </Box>
+
+              {selectedAssignment.description && (
+                <Typography variant="body1" paragraph sx={{ whiteSpace: 'pre-wrap' }}>
+                  {selectedAssignment.description}
+                </Typography>
+              )}
+
+              <Divider sx={{ my: 2 }} />
+
+              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 3 }}>
+                <Chip 
+                  icon={<Users size={16} />}
+                  label={`${selectedAssignment.submission_count || 0} Submissions`} 
+                  color="primary"
+                />
+              </Box>
+
+              <Typography variant="h6" gutterBottom>
+                Assignment Details
+              </Typography>
+
+              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mb: 2 }}>
+                <Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <Calendar size={20} color="#666" />
+                    <Typography variant="subtitle2" color="text.secondary">
+                      Start Date
+                    </Typography>
+                  </Box>
+                  <Typography variant="body1">
+                    {selectedAssignment.start_date ? formatDate(selectedAssignment.start_date) : 'Not set'}
+                  </Typography>
+                </Box>
+
+                <Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <Calendar size={20} color="#666" />
+                    <Typography variant="subtitle2" color="text.secondary">
+                      End Date
+                    </Typography>
+                  </Box>
+                  <Typography variant="body1">
+                    {selectedAssignment.end_date ? formatDate(selectedAssignment.end_date) : 'Not set'}
+                  </Typography>
+                </Box>
+
+                <Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <Calendar size={20} color="#f44336" />
+                    <Typography variant="subtitle2" color="text.secondary">
+                      Due Date
+                    </Typography>
+                  </Box>
+                  <Typography variant="body1">
+                    {selectedAssignment.due_date ? formatDate(selectedAssignment.due_date) : 'Not set'}
+                  </Typography>
+                </Box>
+
+                {selectedAssignment.max_file_size && (
+                  <Box>
+                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                      Maximum File Size
+                    </Typography>
+                    <Typography variant="body1">
+                      {(selectedAssignment.max_file_size / (1024 * 1024)).toFixed(1)} MB
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
+
+              {selectedAssignment.allowed_file_types && selectedAssignment.allowed_file_types.length > 0 && (
+                <>
+                  <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                    Allowed File Types
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
+                    {selectedAssignment.allowed_file_types.map((type, index) => (
+                      <Chip key={index} label={type} variant="outlined" size="small" />
+                    ))}
+                  </Box>
+                </>
+              )}
+
+              <Alert severity="info" sx={{ mt: 2 }}>
+                Students must submit files in one of the allowed formats before the due date.
+              </Alert>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setViewModalOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Edit Modal */}
+      <Dialog 
+        open={editModalOpen} 
+        onClose={() => setEditModalOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Edit Assignment</DialogTitle>
+        <DialogContent dividers>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Click the button below to open the full assignment editor.
+          </Typography>
+          <Button
+            fullWidth
+            variant="contained"
+            onClick={() => {
+              setEditModalOpen(false)
+              router.push(`/teacher/quiz/edit-assignment/${selectedAssignment?.id}`)
+            }}
+          >
+            Open Assignment Editor
+          </Button>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditModalOpen(false)}>Cancel</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Confirmation Modal */}
+      <Dialog 
+        open={deleteModalOpen} 
+        onClose={() => setDeleteModalOpen(false)}
+        maxWidth="xs"
+      >
+        <DialogTitle>Confirm Delete</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to delete this assignment? This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteModalOpen(false)}>Cancel</Button>
+          <Button 
+            onClick={() => assignmentToDelete && handleDelete(assignmentToDelete)} 
+            color="error"
+            variant="contained"
+          >
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }

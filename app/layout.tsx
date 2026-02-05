@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Education Management System",
+  title: "erms - Exam Records Management System",
   description: "Secure education management system with role-based access for Admin, Teacher, and Student",
   viewport: {
     width: 'device-width',

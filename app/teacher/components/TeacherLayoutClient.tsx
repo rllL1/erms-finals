@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { styled } from '@mui/material/styles'
 import Box from '@mui/material/Box'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import { useTheme } from '@mui/material/styles'
 import TeacherSidebar from './TeacherSidebar'
 import TeacherHeader from './TeacherHeader'
+import FloatingChatButton from '@/app/components/FloatingChatButton'
 
 const drawerWidth = 240
 
@@ -53,11 +54,22 @@ interface TeacherLayoutClientProps {
 
 export default function TeacherLayoutClient({ children, email, name }: TeacherLayoutClientProps) {
   const theme = useTheme()
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
-  const [open, setOpen] = useState(!isMobile)
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'), { noSsr: true })
+  const [open, setOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+    setOpen(!isMobile)
+  }, [isMobile])
 
   const handleDrawerToggle = () => {
     setOpen(!open)
+  }
+
+  // Prevent hydration mismatch by not rendering until mounted
+  if (!mounted) {
+    return null
   }
 
   return (
@@ -74,6 +86,7 @@ export default function TeacherLayoutClient({ children, email, name }: TeacherLa
           {children}
         </Box>
       </Main>
+      <FloatingChatButton role="teacher" />
     </Box>
   )
 }

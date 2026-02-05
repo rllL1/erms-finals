@@ -17,7 +17,8 @@ import ListItemIcon from '@mui/material/ListItemIcon'
 import ListItemText from '@mui/material/ListItemText'
 import Box from '@mui/material/Box'
 import useMediaQuery from '@mui/material/useMediaQuery'
-import { LayoutDashboard, User, FileText, Users, ClipboardList } from 'lucide-react'
+import Badge from '@mui/material/Badge'
+import { LayoutDashboard, User, FileText, Users, ClipboardList, MessageSquare } from 'lucide-react'
 
 const drawerWidth = 240
 const miniDrawerWidth = 70
@@ -87,6 +88,11 @@ const menuItems = [
     icon: ClipboardList,
   },
   {
+    name: 'Messages',
+    href: '/teacher/messages',
+    icon: MessageSquare,
+  },
+  {
     name: 'Profile',
     href: '/teacher/profile',
     icon: User,
@@ -102,6 +108,35 @@ export default function TeacherSidebar({ open, onClose }: TeacherSidebarProps) {
   const theme = useTheme()
   const pathname = usePathname()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+  const [unreadCount, setUnreadCount] = React.useState(0)
+  const [mounted, setMounted] = React.useState(false)
+
+  // Ensure component is mounted before fetching
+  React.useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  // Fetch unread message count only after mount
+  React.useEffect(() => {
+    if (!mounted) return
+
+    const fetchUnreadCount = async () => {
+      try {
+        const response = await fetch('/api/messages/unread-count')
+        const data = await response.json()
+        if (response.ok) {
+          setUnreadCount(data.unreadCount || 0)
+        }
+      } catch (error) {
+        console.error('Error fetching unread count:', error)
+      }
+    }
+
+    fetchUnreadCount()
+    // Poll every 30 seconds
+    const interval = setInterval(fetchUnreadCount, 30000)
+    return () => clearInterval(interval)
+  }, [mounted])
 
   return (
     <Drawer 
@@ -140,6 +175,7 @@ export default function TeacherSidebar({ open, onClose }: TeacherSidebarProps) {
         {menuItems.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
           const Icon = item.icon
+          const showBadge = item.name === 'Messages' && unreadCount > 0
           return (
             <ListItem key={item.name} disablePadding sx={{ mb: 0.5, display: 'block' }}>
               <ListItemButton
@@ -173,7 +209,13 @@ export default function TeacherSidebar({ open, onClose }: TeacherSidebarProps) {
                   mr: open ? 2 : 'auto',
                   justifyContent: 'center',
                 }}>
-                  <Icon className="w-5 h-5" />
+                  {showBadge ? (
+                    <Badge badgeContent={unreadCount} color="error">
+                      <Icon className="w-5 h-5" />
+                    </Badge>
+                  ) : (
+                    <Icon className="w-5 h-5" />
+                  )}
                 </ListItemIcon>
                 <ListItemText 
                   primary={item.name} 

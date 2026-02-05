@@ -3,6 +3,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { sendWelcomeEmail } from '@/lib/email'
 
 // Helper function to verify admin access
 async function verifyAdminAccess() {
@@ -121,8 +122,26 @@ export async function createStudent(formData: FormData) {
       return { error: `Failed to create student record: ${studentError.message}` }
     }
 
+    // Send welcome email to the new student
+    const emailResult = await sendWelcomeEmail({
+      to: email,
+      name: studentName,
+      email: email,
+      password: password,
+      userType: 'student',
+    })
+
     revalidatePath('/admin/users')
-    return { success: true, message: 'Student created successfully' }
+    
+    if (!emailResult.success) {
+      // Account created but email failed - still return success with warning
+      return { 
+        success: true, 
+        message: 'Student created successfully. Note: Welcome email could not be sent.' 
+      }
+    }
+
+    return { success: true, message: 'Student created successfully and welcome email sent!' }
   } catch (error) {
     return { error: error instanceof Error ? error.message : 'An unexpected error occurred' }
   }
@@ -221,8 +240,26 @@ export async function createTeacher(formData: FormData) {
       return { error: `Failed to create teacher record: ${teacherError.message}` }
     }
 
+    // Send welcome email to the new teacher
+    const emailResult = await sendWelcomeEmail({
+      to: email,
+      name: teacherName,
+      email: email,
+      password: password,
+      userType: 'teacher',
+    })
+
     revalidatePath('/admin/users')
-    return { success: true, message: 'Teacher created successfully' }
+    
+    if (!emailResult.success) {
+      // Account created but email failed - still return success with warning
+      return { 
+        success: true, 
+        message: 'Teacher created successfully. Note: Welcome email could not be sent.' 
+      }
+    }
+
+    return { success: true, message: 'Teacher created successfully and welcome email sent!' }
   } catch (error) {
     return { error: error instanceof Error ? error.message : 'An unexpected error occurred' }
   }
@@ -329,22 +366,72 @@ export async function getDashboardStats() {
     const supabase = await createClient()
     
     // Get counts
-    const [studentsResult, teachersResult, profilesResult] = await Promise.all([
+    const [
+      studentsResult, 
+      teachersResult, 
+      profilesResult, 
+      quizzesResult, 
+      examsResult, 
+      assignmentsResult,
+      groupClassesResult,
+      activeStudentsResult
+    ] = await Promise.all([
       supabase.from('students').select('id', { count: 'exact', head: true }),
       supabase.from('teachers').select('id', { count: 'exact', head: true }),
       supabase.from('profiles').select('id', { count: 'exact', head: true }),
+      supabase.from('quizzes').select('id', { count: 'exact', head: true }).eq('type', 'quiz'),
+      supabase.from('quizzes').select('id', { count: 'exact', head: true }).eq('type', 'exam'),
+      supabase.from('quizzes').select('id', { count: 'exact', head: true }).eq('type', 'assignment'),
+      supabase.from('group_classes').select('id', { count: 'exact', head: true }),
+      supabase.from('students').select('id', { count: 'exact', head: true }).eq('is_active', true),
     ])
+
+    // Get recent activity
+    const { data: recentQuizzes } = await supabase
+      .from('quizzes')
+      .select(`
+        id,
+        title,
+        type,
+        created_at,
+        teachers!inner (
+          teacher_name
+        )
+      `)
+      .order('created_at', { ascending: false })
+      .limit(5)
+
+    // Get submission stats
+    const { data: submissions } = await supabase
+      .from('quiz_submissions')
+      .select('id, created_at')
+      .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
 
     return {
       totalStudents: studentsResult.count || 0,
       totalTeachers: teachersResult.count || 0,
       totalUsers: profilesResult.count || 0,
+      totalQuizzes: quizzesResult.count || 0,
+      totalExams: examsResult.count || 0,
+      totalAssignments: assignmentsResult.count || 0,
+      totalGroupClasses: groupClassesResult.count || 0,
+      activeStudents: activeStudentsResult.count || 0,
+      recentActivity: recentQuizzes || [],
+      weeklySubmissions: submissions?.length || 0,
     }
   } catch (error) {
+    console.error('Error getting dashboard stats:', error)
     return {
       totalStudents: 0,
       totalTeachers: 0,
       totalUsers: 0,
+      totalQuizzes: 0,
+      totalExams: 0,
+      totalAssignments: 0,
+      totalGroupClasses: 0,
+      activeStudents: 0,
+      recentActivity: [],
+      weeklySubmissions: 0,
     }
   }
 }
