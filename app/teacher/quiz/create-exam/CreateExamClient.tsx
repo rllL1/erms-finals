@@ -11,15 +11,13 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
-  Grid,
   Typography,
   IconButton,
   Alert,
   Checkbox,
   FormControlLabel,
-  FormGroup,
 } from '@mui/material'
-import { ArrowLeft, Delete, Upload, Sparkles, Printer, Calculator } from 'lucide-react'
+import { ArrowLeft, Delete, Upload, Sparkles, Printer } from 'lucide-react'
 import { generateExamPDF } from '../utils/pdfGenerator'
 
 type ExamType = 'enumeration' | 'multiple-choice' | 'identification' | 'true-false' | 'essay' | 'math'
@@ -30,6 +28,7 @@ interface ExamQuestion {
   type: ExamType
   question: string
   options?: string[]
+  correct_answer?: string
   points: number
 }
 
@@ -63,7 +62,14 @@ export default function CreateExamClient({ teacher }: { teacher: Teacher }) {
   const [loading, setLoading] = useState(false)
   const [selectedExamTypes, setSelectedExamTypes] = useState<ExamType[]>(['multiple-choice', 'true-false'])
   const [savedExam, setSavedExam] = useState<SavedExam | null>(null)
-  const [numQuestions, setNumQuestions] = useState(20)
+  const [questionCounts, setQuestionCounts] = useState<Record<ExamType, number>>({
+    'enumeration': 5,
+    'multiple-choice': 5,
+    'identification': 5,
+    'true-false': 5,
+    'essay': 2,
+    'math': 5,
+  })
 
   const handleAddQuestion = (type: ExamType) => {
     const newQuestion: ExamQuestion = {
@@ -131,7 +137,9 @@ export default function CreateExamClient({ teacher }: { teacher: Teacher }) {
       formData.append('prompt', aiPrompt)
       formData.append('examPeriod', examPeriod)
       formData.append('examTypes', JSON.stringify(selectedExamTypes))
-      formData.append('numQuestions', numQuestions.toString())
+      formData.append('questionCounts', JSON.stringify(questionCounts))
+      const totalQuestions = selectedExamTypes.reduce((sum, type) => sum + questionCounts[type], 0)
+      formData.append('numQuestions', totalQuestions.toString())
 
       const response = await fetch('/api/teacher/generate-exam', {
         method: 'POST',
@@ -300,73 +308,140 @@ export default function CreateExamClient({ teacher }: { teacher: Teacher }) {
             </Alert>
 
             <Typography variant="subtitle1" sx={{ mb: 1 }}>Select Exam Types to Generate:</Typography>
-            <FormGroup row sx={{ mb: 2 }}>
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={selectedExamTypes.includes('enumeration')}
-                    onChange={() => handleExamTypeToggle('enumeration')}
-                  />
-                }
-                label="Enumeration"
-              />
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={selectedExamTypes.includes('multiple-choice')}
-                    onChange={() => handleExamTypeToggle('multiple-choice')}
-                  />
-                }
-                label="Multiple Choice"
-              />
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={selectedExamTypes.includes('identification')}
-                    onChange={() => handleExamTypeToggle('identification')}
-                  />
-                }
-                label="Identification"
-              />
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={selectedExamTypes.includes('true-false')}
-                    onChange={() => handleExamTypeToggle('true-false')}
-                  />
-                }
-                label="True/False"
-              />
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={selectedExamTypes.includes('essay')}
-                    onChange={() => handleExamTypeToggle('essay')}
-                  />
-                }
-                label="Essay"
-              />
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={selectedExamTypes.includes('math')}
-                    onChange={() => handleExamTypeToggle('math')}
-                  />
-                }
-                label="Math Problem"
-              />
-            </FormGroup>
-
-            <TextField
-              fullWidth
-              type="number"
-              label="Number of Questions to Generate"
-              value={numQuestions}
-              onChange={(e) => setNumQuestions(parseInt(e.target.value) || 20)}
-              inputProps={{ min: 1, max: 200 }}
-              helperText="Specify how many questions to generate (1-200)"
-              sx={{ mb: 2 }}
-            />
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={selectedExamTypes.includes('enumeration')}
+                      onChange={() => handleExamTypeToggle('enumeration')}
+                    />
+                  }
+                  label="Enumeration"
+                  sx={{ minWidth: 150 }}
+                />
+                <TextField
+                  size="small"
+                  type="number"
+                  label="Count"
+                  value={questionCounts['enumeration']}
+                  onChange={(e) => setQuestionCounts({...questionCounts, 'enumeration': parseInt(e.target.value) || 1})}
+                  inputProps={{ min: 1, max: 50 }}
+                  sx={{ width: 80 }}
+                  disabled={!selectedExamTypes.includes('enumeration')}
+                />
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={selectedExamTypes.includes('multiple-choice')}
+                      onChange={() => handleExamTypeToggle('multiple-choice')}
+                    />
+                  }
+                  label="Multiple Choice"
+                  sx={{ minWidth: 150 }}
+                />
+                <TextField
+                  size="small"
+                  type="number"
+                  label="Count"
+                  value={questionCounts['multiple-choice']}
+                  onChange={(e) => setQuestionCounts({...questionCounts, 'multiple-choice': parseInt(e.target.value) || 1})}
+                  inputProps={{ min: 1, max: 50 }}
+                  sx={{ width: 80 }}
+                  disabled={!selectedExamTypes.includes('multiple-choice')}
+                />
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={selectedExamTypes.includes('identification')}
+                      onChange={() => handleExamTypeToggle('identification')}
+                    />
+                  }
+                  label="Identification"
+                  sx={{ minWidth: 150 }}
+                />
+                <TextField
+                  size="small"
+                  type="number"
+                  label="Count"
+                  value={questionCounts['identification']}
+                  onChange={(e) => setQuestionCounts({...questionCounts, 'identification': parseInt(e.target.value) || 1})}
+                  inputProps={{ min: 1, max: 50 }}
+                  sx={{ width: 80 }}
+                  disabled={!selectedExamTypes.includes('identification')}
+                />
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={selectedExamTypes.includes('true-false')}
+                      onChange={() => handleExamTypeToggle('true-false')}
+                    />
+                  }
+                  label="True/False"
+                  sx={{ minWidth: 150 }}
+                />
+                <TextField
+                  size="small"
+                  type="number"
+                  label="Count"
+                  value={questionCounts['true-false']}
+                  onChange={(e) => setQuestionCounts({...questionCounts, 'true-false': parseInt(e.target.value) || 1})}
+                  inputProps={{ min: 1, max: 50 }}
+                  sx={{ width: 80 }}
+                  disabled={!selectedExamTypes.includes('true-false')}
+                />
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={selectedExamTypes.includes('essay')}
+                      onChange={() => handleExamTypeToggle('essay')}
+                    />
+                  }
+                  label="Essay"
+                  sx={{ minWidth: 150 }}
+                />
+                <TextField
+                  size="small"
+                  type="number"
+                  label="Count"
+                  value={questionCounts['essay']}
+                  onChange={(e) => setQuestionCounts({...questionCounts, 'essay': parseInt(e.target.value) || 1})}
+                  inputProps={{ min: 1, max: 50 }}
+                  sx={{ width: 80 }}
+                  disabled={!selectedExamTypes.includes('essay')}
+                />
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={selectedExamTypes.includes('math')}
+                      onChange={() => handleExamTypeToggle('math')}
+                    />
+                  }
+                  label="Question"
+                  sx={{ minWidth: 150 }}
+                />
+                <TextField
+                  size="small"
+                  type="number"
+                  label="Count"
+                  value={questionCounts['math']}
+                  onChange={(e) => setQuestionCounts({...questionCounts, 'math': parseInt(e.target.value) || 1})}
+                  inputProps={{ min: 1, max: 50 }}
+                  sx={{ width: 80 }}
+                  disabled={!selectedExamTypes.includes('math')}
+                />
+              </Box>
+            </Box>
             
             <Button
               variant="outlined"
@@ -448,10 +523,9 @@ export default function CreateExamClient({ teacher }: { teacher: Teacher }) {
                   size="small"
                   variant="outlined"
                   color="success"
-                  startIcon={<Calculator size={16} />}
                   onClick={() => handleAddQuestion('math')}
                 >
-                  Questions
+                  Question
                 </Button>
               </Box>
             </Box>
@@ -460,7 +534,7 @@ export default function CreateExamClient({ teacher }: { teacher: Teacher }) {
               <Card key={question.id} sx={{ mb: 2, p: 2, bgcolor: 'grey.50' }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
                   <Typography variant="subtitle1">
-                    Question {index + 1} - {question.type.replace('-', ' ').toUpperCase()}
+                    {question.type === 'math' ? `Question ${index + 1}` : `Question ${index + 1} - ${question.type.replace('-', ' ').toUpperCase()}`}
                   </Typography>
                   <Box>
                     <TextField
@@ -489,6 +563,17 @@ export default function CreateExamClient({ teacher }: { teacher: Teacher }) {
                   onChange={(e) => handleQuestionChange(question.id, 'question', e.target.value)}
                   sx={{ mb: 2 }}
                 />
+
+                {question.type === 'math' && (
+                  <TextField
+                    fullWidth
+                    label="Correct Answer"
+                    value={question.correct_answer || ''}
+                    onChange={(e) => handleQuestionChange(question.id, 'correct_answer', e.target.value)}
+                    sx={{ mb: 2 }}
+                    placeholder="Enter the correct answer"
+                  />
+                )}
 
                 {question.type === 'multiple-choice' && question.options && (
                   <Box>
