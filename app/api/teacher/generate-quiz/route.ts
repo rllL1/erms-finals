@@ -21,7 +21,8 @@ export async function POST(request: NextRequest) {
     }
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' })
+    // Use gemini-1.5-flash which is free and has better performance
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
 
     let contextText = ''
 
@@ -105,13 +106,26 @@ export async function POST(request: NextRequest) {
         )
     }
 
-    console.log('Sending prompt to Gemini:', aiPrompt)
+    console.log('Sending prompt to Gemini:', aiPrompt.substring(0, 200) + '...')
 
-    const result = await model.generateContent(aiPrompt)
-    const response = await result.response
-    const text = response.text()
+    let result, response, text
+    try {
+      result = await model.generateContent(aiPrompt)
+      response = await result.response
+      text = response.text()
+    } catch (aiError) {
+      console.error('Gemini API Error:', aiError)
+      return NextResponse.json(
+        { 
+          error: 'AI service error',
+          details: aiError instanceof Error ? aiError.message : 'Failed to communicate with Gemini API. Please check your API key.'
+        },
+        { status: 500 }
+      )
+    }
 
-    console.log('Gemini response:', text)
+    console.log('Gemini response length:', text.length)
+    console.log('Gemini response preview:', text.substring(0, 200))
 
     // Clean the response - remove markdown code blocks if present
     let cleanedText = text.trim()

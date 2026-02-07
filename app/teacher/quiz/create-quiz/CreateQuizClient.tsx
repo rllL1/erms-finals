@@ -120,12 +120,28 @@ export default function CreateQuizClient({ teacher }: { teacher: Teacher }) {
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        console.error('API Error:', errorData)
-        throw new Error(errorData.details || 'Failed to generate quiz')
+        let errorMessage = 'Failed to generate quiz'
+        try {
+          const errorData = await response.json()
+          console.error('API Error:', errorData)
+          errorMessage = errorData.details || errorData.error || errorMessage
+        } catch (e) {
+          // If response is not JSON, try to get text
+          const errorText = await response.text()
+          console.error('API Error (non-JSON):', errorText)
+          errorMessage = errorText || `Server error: ${response.status}`
+        }
+        throw new Error(errorMessage)
       }
 
-      const data = await response.json()
+      let data
+      try {
+        data = await response.json()
+      } catch (e) {
+        console.error('Failed to parse response JSON:', e)
+        throw new Error('Invalid response from server. Please check your API key configuration.')
+      }
+      
       setQuestions(data.questions)
       setCreationMethod('manual')
     } catch (error) {
