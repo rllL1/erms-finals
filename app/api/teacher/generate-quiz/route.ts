@@ -21,8 +21,16 @@ export async function POST(request: NextRequest) {
     }
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
-    // Use gemini-pro which is the stable free model
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' })
+    // Use gemini-1.5-flash-latest which is the free model
+    const model = genAI.getGenerativeModel({ 
+      model: 'gemini-1.5-flash-latest',
+      generationConfig: {
+        temperature: 0.7,
+        topK: 40,
+        topP: 0.95,
+        maxOutputTokens: 2048,
+      }
+    })
 
     let contextText = ''
 
