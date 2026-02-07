@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-import TeacherMessagesClient from './TeacherMessagesClient';
+import TeacherMessagesWrapper from './TeacherMessagesWrapper';
 
 export default async function TeacherMessagesPage() {
   const supabase = await createClient();
@@ -21,5 +21,5 @@ export default async function TeacherMessagesPage() {
     redirect('/login');
   }
 
-  return <TeacherMessagesClient userId={user.id} />;
+  return <TeacherMessagesWrapper userId={user.id} />;
 }

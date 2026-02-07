@@ -28,10 +28,17 @@ export default function LoginForm() {
       const result = await login(formData)
       if (result?.error) {
         setError(result.error)
+        setIsLoading(false)
       }
-    } catch {
+      // If no error returned and no redirect happened, login was successful
+    } catch (err: unknown) {
+      // Check if it's a Next.js redirect error
+      // These are expected for successful login and should not show an error message
+      const error = err as { digest?: string; message?: string }
+      if (error?.digest?.startsWith('NEXT_REDIRECT') || error?.message?.includes('NEXT_REDIRECT')) {
+        return // This is a successful redirect, not an error
+      }
       setError('An unexpected error occurred. Please try again.')
-    } finally {
       setIsLoading(false)
     }
   }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Plus, GraduationCap, Briefcase, AlertCircle } from 'lucide-react'
 import StudentsTable from './StudentsTable'
@@ -49,8 +49,27 @@ export default function UsersClient({
   const initialTab = searchParams.get('tab') === 'teachers' ? 'teachers' : 'students'
   
   const [activeTab, setActiveTab] = useState<'students' | 'teachers'>(initialTab)
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('touchstart', handleClickOutside as EventListener)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('touchstart', handleClickOutside as EventListener)
+    }
+  }, [])
 
   const handleAddUser = (type: 'student' | 'teacher') => {
+    setIsDropdownOpen(false)
     if (type === 'student') {
       router.push('/admin/users/add-student')
     } else {
@@ -70,27 +89,32 @@ export default function UsersClient({
         </div>
 
         {/* Add User Dropdown */}
-        <div className="relative group">
-          <button className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors">
+        <div className="relative" ref={dropdownRef}>
+          <button 
+            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors"
+          >
             <Plus className="w-5 h-5" />
             Add User
           </button>
-          <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
-            <button
-              onClick={() => handleAddUser('student')}
-              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-t-lg"
-            >
-              <GraduationCap className="w-4 h-4" />
-              Add Student
-            </button>
-            <button
-              onClick={() => handleAddUser('teacher')}
-              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-b-lg"
-            >
-              <Briefcase className="w-4 h-4" />
-              Add Teacher
-            </button>
-          </div>
+          {isDropdownOpen && (
+            <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-10">
+              <button
+                onClick={() => handleAddUser('student')}
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-t-lg"
+              >
+                <GraduationCap className="w-4 h-4" />
+                Add Student
+              </button>
+              <button
+                onClick={() => handleAddUser('teacher')}
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-b-lg"
+              >
+                <Briefcase className="w-4 h-4" />
+                Add Teacher
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

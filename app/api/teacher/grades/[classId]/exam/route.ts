@@ -65,10 +65,8 @@ export async function POST(
       return NextResponse.json({ error: 'Student not enrolled in this class' }, { status: 404 })
     }
 
-    // Upsert exam scores
+    // Prepare update data
     const updateData: any = {
-      class_id: classId,
-      student_id: student_id,
       graded_by: teacher.id,
       updated_at: new Date().toISOString()
     }
@@ -92,15 +90,38 @@ export async function POST(
       updateData.max_exam_score = max_exam_score || 100
     }
 
-    const { error } = await supabase
+    // Check if record exists first
+    const { data: existingRecord } = await supabase
       .from('student_exam_scores')
-      .upsert(updateData, {
-        onConflict: 'class_id,student_id'
-      })
+      .select('id')
+      .eq('class_id', classId)
+      .eq('student_id', student_id)
+      .single()
+
+    let error
+    if (existingRecord) {
+      // Update existing record
+      const result = await supabase
+        .from('student_exam_scores')
+        .update(updateData)
+        .eq('class_id', classId)
+        .eq('student_id', student_id)
+      error = result.error
+    } else {
+      // Insert new record
+      const result = await supabase
+        .from('student_exam_scores')
+        .insert({
+          class_id: classId,
+          student_id: student_id,
+          ...updateData
+        })
+      error = result.error
+    }
 
     if (error) {
       console.error('Exam score update error:', error)
-      return NextResponse.json({ error: 'Failed to save exam score' }, { status: 500 })
+      return NextResponse.json({ error: `Failed to save exam score: ${error.message}` }, { status: 500 })
     }
 
     return NextResponse.json({ success: true })

@@ -257,11 +257,8 @@ export default function TeacherMessagesClient({ userId }: { userId: string }) {
 
   return (
     <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" fontWeight="bold">
-          Messages
-        </Typography>
-        {!conversation && (
+      {!conversation && (
+        <Box display="flex" justifyContent="flex-end" mb={2}>
           <Button
             variant="contained"
             startIcon={<ChatIcon />}
@@ -272,8 +269,8 @@ export default function TeacherMessagesClient({ userId }: { userId: string }) {
           >
             Start Chat with Admin
           </Button>
-        )}
-      </Box>
+        </Box>
+      )}
 
       {error && (
         <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>

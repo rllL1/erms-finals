@@ -15,8 +15,10 @@ import ListItemButton from '@mui/material/ListItemButton'
 import ListItemIcon from '@mui/material/ListItemIcon'
 import ListItemText from '@mui/material/ListItemText'
 import Box from '@mui/material/Box'
+import Badge from '@mui/material/Badge'
 import useMediaQuery from '@mui/material/useMediaQuery'
-import { LayoutDashboard, BookOpen, User, ClipboardList } from 'lucide-react'
+import { LayoutDashboard, BookOpen, User, ClipboardList, MessageSquare } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 
 const drawerWidth = 240
 const miniDrawerWidth = 70
@@ -76,6 +78,11 @@ const menuItems = [
     icon: BookOpen,
   },
   {
+    name: 'Messages',
+    href: '/student/messages',
+    icon: MessageSquare,
+  },
+  {
     name: 'Grades',
     href: '/student/grades',
     icon: ClipboardList,
@@ -96,6 +103,45 @@ export default function StudentSidebar({ open, onClose }: StudentSidebarProps) {
   const theme = useTheme()
   const pathname = usePathname()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+  const [unreadCount, setUnreadCount] = React.useState(0)
+  const supabase = createClient()
+
+  // Fetch unread message count
+  React.useEffect(() => {
+    const fetchUnreadCount = async () => {
+      try {
+        const response = await fetch('/api/student/messages/unread-count')
+        if (response.ok) {
+          const data = await response.json()
+          setUnreadCount(data.unreadCount || 0)
+        }
+      } catch (error) {
+        console.error('Error fetching unread count:', error)
+      }
+    }
+
+    fetchUnreadCount()
+
+    // Set up real-time subscription for new messages
+    const channel = supabase
+      .channel('student-unread-messages')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'student_teacher_messages'
+        },
+        () => {
+          fetchUnreadCount()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [supabase])
 
   return (
     <Drawer 
@@ -167,7 +213,13 @@ export default function StudentSidebar({ open, onClose }: StudentSidebarProps) {
                   mr: open ? 2 : 'auto',
                   justifyContent: 'center',
                 }}>
-                  <Icon className="w-5 h-5" />
+                  {item.name === 'Messages' && unreadCount > 0 ? (
+                    <Badge badgeContent={unreadCount} color="error" max={99}>
+                      <Icon className="w-5 h-5" />
+                    </Badge>
+                  ) : (
+                    <Icon className="w-5 h-5" />
+                  )}
                 </ListItemIcon>
                 <ListItemText 
                   primary={item.name} 
