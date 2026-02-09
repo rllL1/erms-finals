@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { login } from '@/lib/actions/auth'
 import { Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react'
 import Image from 'next/image'
@@ -16,9 +16,18 @@ export default function LoginForm() {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const theme = useTheme()
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'), { noSsr: true })
-  const isSmallMobile = useMediaQuery(theme.breakpoints.down('sm'), { noSsr: true })
+  const isMobileQuery = useMediaQuery(theme.breakpoints.down('md'))
+  const isSmallMobileQuery = useMediaQuery(theme.breakpoints.down('sm'))
+  
+  // Only use responsive values after mount to avoid hydration mismatch
+  const isMobile = mounted ? isMobileQuery : false
+  const isSmallMobile = mounted ? isSmallMobileQuery : false
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   async function handleSubmit(formData: FormData) {
     setIsLoading(true)

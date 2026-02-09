@@ -23,7 +23,11 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: "erms - Exam Records Management System",
-  description: "Secure education management system with role-based access for Admin, Teacher, and Student",
+  description: "Secure exam management system with role-based access for Admin, Teacher, and Student",
+  icons: {
+    icon: "/234.png",
+    apple: "/234.png",
+  },
 };
 
 export default function RootLayout({
