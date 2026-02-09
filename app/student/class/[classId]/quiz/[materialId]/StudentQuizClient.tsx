@@ -34,6 +34,7 @@ interface Question {
   correct_answer?: string
   points?: number
   order_number?: number
+  image_url?: string
 }
 
 interface Quiz {
@@ -138,8 +139,9 @@ export default function StudentQuizClient({
       const data = await response.json()
 
       if (response.ok) {
-        // Clear the timer from localStorage
+        // Clear the timer and answers from localStorage
         localStorage.removeItem(`quiz_${materialId}_start_time`)
+        localStorage.removeItem(`quiz_${materialId}_answers`)
         
         // Redirect to results page
         if (data.submission && data.submission.id) {
@@ -161,6 +163,19 @@ export default function StudentQuizClient({
     setMounted(true)
     fetchMaterialAndQuiz()
   }, [fetchMaterialAndQuiz])
+
+  // Load saved answers from localStorage on mount
+  useEffect(() => {
+    const savedAnswers = localStorage.getItem(`quiz_${materialId}_answers`)
+    if (savedAnswers) {
+      try {
+        const parsed = JSON.parse(savedAnswers)
+        setAnswers(parsed)
+      } catch {
+        // Invalid saved data, ignore it
+      }
+    }
+  }, [materialId])
 
   useEffect(() => {
     if (!material || !material.time_limit) return
@@ -205,7 +220,10 @@ export default function StudentQuizClient({
   }, [timeLeft, handleSubmit])
 
   const handleAnswerChange = (questionId: string, answer: string) => {
-    setAnswers({ ...answers, [questionId]: answer })
+    const newAnswers = { ...answers, [questionId]: answer }
+    setAnswers(newAnswers)
+    // Save answers to localStorage
+    localStorage.setItem(`quiz_${materialId}_answers`, JSON.stringify(newAnswers))
   }
 
   const formatTime = (seconds: number) => {
@@ -312,6 +330,23 @@ export default function StudentQuizClient({
                 </Typography>
                 <Chip label={`${question.points || 1} pts`} size="small" />
               </Box>
+
+              {/* Display question image if available */}
+              {question.image_url && (
+                <Box sx={{ mb: 2, textAlign: 'center' }}>
+                  <img 
+                    src={question.image_url} 
+                    alt={`Question ${index + 1} image`}
+                    style={{ 
+                      maxWidth: '100%', 
+                      maxHeight: '300px', 
+                      borderRadius: '8px',
+                      border: '1px solid #ddd'
+                    }} 
+                  />
+                </Box>
+              )}
+
               <Typography variant="body1" sx={{ mb: 2 }}>
                 {question.question}
               </Typography>
@@ -352,6 +387,17 @@ export default function StudentQuizClient({
                 <TextField
                   fullWidth
                   placeholder="Type your answer here..."
+                  value={answers[question.id] || ''}
+                  onChange={(e) => handleAnswerChange(question.id, e.target.value)}
+                />
+              )}
+
+              {(question.question_type === 'essay') && (
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={6}
+                  placeholder="Write your essay answer here..."
                   value={answers[question.id] || ''}
                   onChange={(e) => handleAnswerChange(question.id, e.target.value)}
                 />

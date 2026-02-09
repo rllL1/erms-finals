@@ -36,7 +36,6 @@ interface Quiz {
   time_limit?: number
   question_count: number
   start_date: string | null
-  end_date: string | null
   created_at: string
 }
 
@@ -176,7 +175,6 @@ export default function QuizzesTab({ teacherId }: { teacherId: string }) {
               <TableCell><strong>Type</strong></TableCell>
               <TableCell><strong>Questions</strong></TableCell>
               <TableCell><strong>Start Date</strong></TableCell>
-              <TableCell><strong>End Date</strong></TableCell>
               <TableCell><strong>Created</strong></TableCell>
               <TableCell align="center"><strong>Actions</strong></TableCell>
             </TableRow>
@@ -184,11 +182,11 @@ export default function QuizzesTab({ teacherId }: { teacherId: string }) {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} align="center">Loading...</TableCell>
+                <TableCell colSpan={6} align="center">Loading...</TableCell>
               </TableRow>
             ) : quizzes.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} align="center">
+                <TableCell colSpan={6} align="center">
                   No quizzes created yet. Click Create Quiz to get started.
                 </TableCell>
               </TableRow>
@@ -206,7 +204,6 @@ export default function QuizzesTab({ teacherId }: { teacherId: string }) {
                   </TableCell>
                   <TableCell>{quiz.question_count || 0}</TableCell>
                   <TableCell>{quiz.start_date ? formatDate(quiz.start_date) : '-'}</TableCell>
-                  <TableCell>{quiz.end_date ? formatDate(quiz.end_date) : '-'}</TableCell>
                   <TableCell>{formatDate(quiz.created_at)}</TableCell>
                   <TableCell align="center">
                     <IconButton 
@@ -299,6 +296,22 @@ export default function QuizzesTab({ teacherId }: { teacherId: string }) {
                         </Typography>
                         <Chip label={`${question.points || 1} pts`} size="small" color="primary" />
                       </Box>
+
+                      {/* Display question image if available */}
+                      {question.image_url && (
+                        <Box sx={{ mb: 2, mt: 1, textAlign: 'center' }}>
+                          <img 
+                            src={question.image_url} 
+                            alt={`Question ${index + 1} image`}
+                            style={{ 
+                              maxWidth: '100%', 
+                              maxHeight: '200px', 
+                              borderRadius: '8px',
+                              border: '1px solid #ddd'
+                            }} 
+                          />
+                        </Box>
+                      )}
 
                       {question.question_type === 'multiple-choice' && question.options && Array.isArray(question.options) && (
                         <Box sx={{ ml: 2, mt: 1 }}>

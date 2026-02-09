@@ -30,6 +30,7 @@ export async function PUT(
       correct_answer: q.correct_answer,
       points: q.points || 1,
       order_number: index + 1,
+      image_url: q.image_url || null,
     }))
 
     const { error } = await supabase

@@ -112,7 +112,6 @@ export async function PUT(
         quiz_type: body.quiz_type,
         description: body.description,
         start_date: body.start_date,
-        end_date: body.end_date,
         time_limit: body.time_limit,
       })
       .eq('id', quizId)

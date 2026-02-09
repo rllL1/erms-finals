@@ -10,7 +10,6 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
-  Grid,
   Typography,
   IconButton,
   Switch,
@@ -25,10 +24,15 @@ import {
   Paper,
   Chip,
   Box,
+  Snackbar,
+  Dialog,
+  DialogContent,
+  DialogActions,
+  CircularProgress,
 } from '@mui/material'
-import { ArrowLeft, Delete, Upload, Sparkles } from 'lucide-react'
+import { ArrowLeft, Delete, Upload, Sparkles, CheckCircle, Image as ImageIcon, X } from 'lucide-react'
 
-type QuizType = 'true-false' | 'identification' | 'multiple-choice'
+type QuizType = 'true-false' | 'identification' | 'multiple-choice' | 'essay'
 
 interface Question {
   id: string
@@ -36,6 +40,10 @@ interface Question {
   question: string
   options?: string[]
   correctAnswer: string
+  points?: number
+  imageUrl?: string
+  imageFile?: File
+  imageUploading?: boolean
 }
 
 interface Teacher {
@@ -53,12 +61,26 @@ export default function CreateQuizClient({ teacher }: { teacher: Teacher }) {
   const [quizTitle, setQuizTitle] = useState('')
   const [quizType, setQuizType] = useState<QuizType>('multiple-choice')
   const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
   const [showAnswerKey, setShowAnswerKey] = useState(false)
   const [questions, setQuestions] = useState<Question[]>([])
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [aiPrompt, setAiPrompt] = useState('')
+  
+  // Per-type question counts for AI generation
+  const [multipleChoiceCount, setMultipleChoiceCount] = useState(0)
+  const [trueFalseCount, setTrueFalseCount] = useState(0)
+  const [identificationCount, setIdentificationCount] = useState(0)
+  const [essayCount, setEssayCount] = useState(0)
+  
   const [loading, setLoading] = useState(false)
+  
+  // Snackbar/Modal state
+  const [snackbar, setSnackbar] = useState<{
+    open: boolean
+    message: string
+    severity: 'success' | 'error' | 'warning' | 'info'
+  }>({ open: false, message: '', severity: 'info' })
+  const [successModal, setSuccessModal] = useState(false)
 
   const handleAddQuestion = () => {
     const newQuestion: Question = {
@@ -66,19 +88,85 @@ export default function CreateQuizClient({ teacher }: { teacher: Teacher }) {
       type: quizType,
       question: '',
       options: quizType === 'multiple-choice' ? ['', '', '', ''] : undefined,
-      correctAnswer: '',
+      correctAnswer: quizType === 'essay' ? '' : '',
+      points: quizType === 'essay' ? 10 : undefined,
+      imageUrl: undefined,
+      imageFile: undefined,
+      imageUploading: false,
     }
     setQuestions([...questions, newQuestion])
+  }
+
+  const handleImageUpload = async (questionId: string, file: File) => {
+    // Validate file type
+    const validTypes = ['image/jpeg', 'image/png', 'image/jpg']
+    if (!validTypes.includes(file.type)) {
+      setSnackbar({ open: true, message: 'Invalid file type. Only JPG and PNG are allowed.', severity: 'error' })
+      return
+    }
+
+    // Validate file size (max 5MB)
+    const maxSize = 5 * 1024 * 1024
+    if (file.size > maxSize) {
+      setSnackbar({ open: true, message: 'File too large. Maximum size is 5MB.', severity: 'error' })
+      return
+    }
+
+    // Set uploading state
+    setQuestions(questions.map(q => 
+      q.id === questionId ? { ...q, imageUploading: true } : q
+    ))
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('questionId', questionId)
+
+      const response = await fetch('/api/teacher/upload-question-image', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setQuestions(questions.map(q => 
+          q.id === questionId ? { ...q, imageUrl: data.imageUrl, imageFile: file, imageUploading: false } : q
+        ))
+        setSnackbar({ open: true, message: 'Image uploaded successfully', severity: 'success' })
+      } else {
+        throw new Error(data.error || 'Failed to upload image')
+      }
+    } catch (error) {
+      console.error('Error uploading image:', error)
+      setQuestions(questions.map(q => 
+        q.id === questionId ? { ...q, imageUploading: false } : q
+      ))
+      setSnackbar({ open: true, message: `Failed to upload image: ${error instanceof Error ? error.message : 'Unknown error'}`, severity: 'error' })
+    }
+  }
+
+  const handleRemoveImage = (questionId: string) => {
+    setQuestions(questions.map(q => 
+      q.id === questionId ? { ...q, imageUrl: undefined, imageFile: undefined } : q
+    ))
   }
 
   const handleDeleteQuestion = (id: string) => {
     setQuestions(questions.filter(q => q.id !== id))
   }
 
-  const handleQuestionChange = (id: string, field: string, value: string) => {
-    setQuestions(questions.map(q => 
-      q.id === id ? { ...q, [field]: value } : q
-    ))
+  const handleQuestionChange = (id: string, field: string, value: string | number) => {
+    setQuestions(questions.map(q => {
+      if (q.id === id) {
+        // Handle points as a number
+        if (field === 'points') {
+          return { ...q, [field]: parseInt(String(value)) || 1 }
+        }
+        return { ...q, [field]: value }
+      }
+      return q
+    }))
   }
 
   const handleOptionChange = (questionId: string, optionIndex: number, value: string) => {
@@ -100,38 +188,126 @@ export default function CreateQuizClient({ teacher }: { teacher: Teacher }) {
 
   const handleGenerateAI = async () => {
     if (!uploadedFile && !aiPrompt) {
-      alert('Please upload a file or provide a prompt')
+      setSnackbar({ open: true, message: 'Please upload a file or provide a prompt', severity: 'warning' })
+      return
+    }
+
+    const totalQuestions = multipleChoiceCount + trueFalseCount + identificationCount
+    if (totalQuestions === 0) {
+      setSnackbar({ open: true, message: 'Please specify at least one question to generate', severity: 'warning' })
       return
     }
 
     setLoading(true)
     try {
-      const formData = new FormData()
-      if (uploadedFile) {
-        formData.append('file', uploadedFile)
+      const allQuestions: Question[] = []
+      
+      // Generate multiple choice questions
+      if (multipleChoiceCount > 0) {
+        const formData = new FormData()
+        if (uploadedFile) {
+          formData.append('file', uploadedFile)
+        }
+        formData.append('prompt', aiPrompt)
+        formData.append('quizType', 'multiple-choice')
+        formData.append('numQuestions', String(multipleChoiceCount))
+
+        const response = await fetch('/api/teacher/generate-quiz', {
+          method: 'POST',
+          body: formData,
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          allQuestions.push(...data.questions)
+        }
       }
-      formData.append('prompt', aiPrompt)
-      formData.append('quizType', quizType)
-      formData.append('numQuestions', '10')
 
-      const response = await fetch('/api/teacher/generate-quiz', {
-        method: 'POST',
-        body: formData,
-      })
+      // Generate true/false questions
+      if (trueFalseCount > 0) {
+        const formData = new FormData()
+        if (uploadedFile) {
+          formData.append('file', uploadedFile)
+        }
+        formData.append('prompt', aiPrompt)
+        formData.append('quizType', 'true-false')
+        formData.append('numQuestions', String(trueFalseCount))
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        console.error('API Error:', errorData)
-        throw new Error(errorData.details || 'Failed to generate quiz')
+        const response = await fetch('/api/teacher/generate-quiz', {
+          method: 'POST',
+          body: formData,
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          allQuestions.push(...data.questions)
+        }
       }
 
-      const data = await response.json()
-      setQuestions(data.questions)
+      // Generate identification questions
+      if (identificationCount > 0) {
+        const formData = new FormData()
+        if (uploadedFile) {
+          formData.append('file', uploadedFile)
+        }
+        formData.append('prompt', aiPrompt)
+        formData.append('quizType', 'identification')
+        formData.append('numQuestions', String(identificationCount))
+
+        const response = await fetch('/api/teacher/generate-quiz', {
+          method: 'POST',
+          body: formData,
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          allQuestions.push(...data.questions)
+        }
+      }
+
+      // Generate essay questions
+      if (essayCount > 0) {
+        const formData = new FormData()
+        if (uploadedFile) {
+          formData.append('file', uploadedFile)
+        }
+        formData.append('prompt', aiPrompt)
+        formData.append('quizType', 'essay')
+        formData.append('numQuestions', String(essayCount))
+
+        const response = await fetch('/api/teacher/generate-quiz', {
+          method: 'POST',
+          body: formData,
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          // Add default points to essay questions
+          const essayQuestions = data.questions.map((q: Question) => ({
+            ...q,
+            points: 10, // Default 10 points for essay questions
+          }))
+          allQuestions.push(...essayQuestions)
+        }
+      }
+
+      if (allQuestions.length === 0) {
+        throw new Error('Failed to generate any questions')
+      }
+
+      // Re-assign IDs
+      const questionsWithIds = allQuestions.map((q, index) => ({
+        ...q,
+        id: String(Date.now() + index),
+      }))
+
+      setQuestions(questionsWithIds)
       setCreationMethod('manual')
+      setSnackbar({ open: true, message: `Generated ${questionsWithIds.length} questions successfully!`, severity: 'success' })
     } catch (error) {
       console.error('Error generating quiz:', error)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      alert(`Failed to generate quiz with AI: ${errorMessage}`)
+      setSnackbar({ open: true, message: `Failed to generate quiz with AI: ${errorMessage}`, severity: 'error' })
     } finally {
       setLoading(false)
     }
@@ -139,7 +315,7 @@ export default function CreateQuizClient({ teacher }: { teacher: Teacher }) {
 
   const handleSaveQuiz = async () => {
     if (!quizTitle || questions.length === 0) {
-      alert('Please provide a title and at least one question')
+      setSnackbar({ open: true, message: 'Please provide a title and at least one question', severity: 'warning' })
       return
     }
 
@@ -147,7 +323,7 @@ export default function CreateQuizClient({ teacher }: { teacher: Teacher }) {
     console.log('Teacher ID:', teacher?.id)
 
     if (!teacher || !teacher.id) {
-      alert('Teacher information is missing. Please refresh the page and try again.')
+      setSnackbar({ open: true, message: 'Teacher information is missing. Please refresh the page and try again.', severity: 'error' })
       return
     }
 
@@ -158,7 +334,6 @@ export default function CreateQuizClient({ teacher }: { teacher: Teacher }) {
         title: quizTitle,
         type: quizType,
         startDate,
-        endDate,
         showAnswerKey,
         questions,
       }
@@ -177,12 +352,10 @@ export default function CreateQuizClient({ teacher }: { teacher: Teacher }) {
         throw new Error(errorData.error || 'Failed to create quiz')
       }
 
-      alert('Quiz created successfully!')
-      router.push('/teacher/quiz')
-      router.refresh()
+      setSuccessModal(true)
     } catch (error) {
       console.error('Error creating quiz:', error)
-      alert(`Failed to create quiz: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      setSnackbar({ open: true, message: `Failed to create quiz: ${error instanceof Error ? error.message : 'Unknown error'}`, severity: 'error' })
     } finally {
       setLoading(false)
     }
@@ -217,6 +390,7 @@ export default function CreateQuizClient({ teacher }: { teacher: Teacher }) {
               <MenuItem value="true-false">True/False</MenuItem>
               <MenuItem value="identification">Identification</MenuItem>
               <MenuItem value="multiple-choice">Multiple Choice</MenuItem>
+              <MenuItem value="essay">Essay</MenuItem>
             </Select>
           </FormControl>
           <TextField
@@ -225,14 +399,6 @@ export default function CreateQuizClient({ teacher }: { teacher: Teacher }) {
             label="Start Date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-          />
-          <TextField
-            fullWidth
-            type="datetime-local"
-            label="End Date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
             InputLabelProps={{ shrink: true }}
           />
         </Box>
@@ -295,14 +461,58 @@ export default function CreateQuizClient({ teacher }: { teacher: Teacher }) {
               label="Or Enter Topic/Prompt"
               value={aiPrompt}
               onChange={(e) => setAiPrompt(e.target.value)}
-              placeholder="e.g., Generate 10 questions about World War II"
+              placeholder="e.g., Generate questions about World War II"
               sx={{ mb: 2 }}
             />
+
+            <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 'bold' }}>
+              Number of Questions by Type
+            </Typography>
+            
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 2, mb: 2 }}>
+              <TextField
+                fullWidth
+                type="number"
+                label="Multiple Choice"
+                value={multipleChoiceCount}
+                onChange={(e) => setMultipleChoiceCount(Math.max(0, Math.min(50, parseInt(e.target.value) || 0)))}
+                inputProps={{ min: 0, max: 50 }}
+              />
+              <TextField
+                fullWidth
+                type="number"
+                label="True/False"
+                value={trueFalseCount}
+                onChange={(e) => setTrueFalseCount(Math.max(0, Math.min(50, parseInt(e.target.value) || 0)))}
+                inputProps={{ min: 0, max: 50 }}
+              />
+              <TextField
+                fullWidth
+                type="number"
+                label="Identification"
+                value={identificationCount}
+                onChange={(e) => setIdentificationCount(Math.max(0, Math.min(50, parseInt(e.target.value) || 0)))}
+                inputProps={{ min: 0, max: 50 }}
+              />
+              <TextField
+                fullWidth
+                type="number"
+                label="Essay"
+                value={essayCount}
+                onChange={(e) => setEssayCount(Math.max(0, Math.min(20, parseInt(e.target.value) || 0)))}
+                inputProps={{ min: 0, max: 20 }}
+                helperText="Scored by teacher"
+              />
+            </Box>
+            
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Total: {multipleChoiceCount + trueFalseCount + identificationCount + essayCount} questions
+            </Typography>
 
             <Button
               variant="contained"
               onClick={handleGenerateAI}
-              disabled={loading || (!uploadedFile && !aiPrompt)}
+              disabled={loading || (!uploadedFile && !aiPrompt) || (multipleChoiceCount + trueFalseCount + identificationCount + essayCount === 0)}
               fullWidth
             >
               {loading ? 'Generating...' : 'Generate Questions'}
@@ -383,6 +593,58 @@ export default function CreateQuizClient({ teacher }: { teacher: Teacher }) {
                   </IconButton>
                 </div>
 
+                {/* Image Upload Section */}
+                <Box sx={{ mb: 2 }}>
+                  {question.imageUrl ? (
+                    <Box sx={{ position: 'relative', display: 'inline-block', mb: 1 }}>
+                      <img 
+                        src={question.imageUrl} 
+                        alt="Question image" 
+                        style={{ 
+                          maxWidth: '100%', 
+                          maxHeight: '200px', 
+                          borderRadius: '8px',
+                          border: '1px solid #ddd'
+                        }} 
+                      />
+                      <IconButton
+                        size="small"
+                        onClick={() => handleRemoveImage(question.id)}
+                        sx={{ 
+                          position: 'absolute', 
+                          top: 4, 
+                          right: 4, 
+                          bgcolor: 'rgba(255,255,255,0.9)',
+                          '&:hover': { bgcolor: 'rgba(255,255,255,1)' }
+                        }}
+                      >
+                        <X size={16} />
+                      </IconButton>
+                    </Box>
+                  ) : (
+                    <Button
+                      variant="outlined"
+                      component="label"
+                      size="small"
+                      startIcon={question.imageUploading ? <CircularProgress size={16} /> : <ImageIcon size={16} />}
+                      disabled={question.imageUploading}
+                      sx={{ mb: 1 }}
+                    >
+                      {question.imageUploading ? 'Uploading...' : 'Add Image (Optional)'}
+                      <input
+                        type="file"
+                        hidden
+                        accept="image/jpeg,image/png,image/jpg"
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            handleImageUpload(question.id, e.target.files[0])
+                          }
+                        }}
+                      />
+                    </Button>
+                  )}
+                </Box>
+
                 <TextField
                   fullWidth
                   multiline
@@ -435,6 +697,22 @@ export default function CreateQuizClient({ teacher }: { teacher: Teacher }) {
                       <MenuItem value="D">Option D</MenuItem>
                     </Select>
                   </FormControl>
+                ) : question.type === 'essay' ? (
+                  <Box>
+                    <TextField
+                      fullWidth
+                      type="number"
+                      label="Points"
+                      value={question.points || 10}
+                      onChange={(e) => handleQuestionChange(question.id, 'points', e.target.value)}
+                      inputProps={{ min: 1, max: 100 }}
+                      sx={{ mb: 2 }}
+                      helperText="Points to be awarded by teacher when grading"
+                    />
+                    <Alert severity="info" sx={{ mt: 1 }}>
+                      Essay questions are manually scored by the teacher after submission.
+                    </Alert>
+                  </Box>
                 ) : (
                   <TextField
                     fullWidth
@@ -466,6 +744,57 @@ export default function CreateQuizClient({ teacher }: { teacher: Teacher }) {
           </Button>
         </div>
       </Card>
+
+      {/* Success Modal */}
+      <Dialog
+        open={successModal}
+        onClose={() => {
+          setSuccessModal(false)
+          router.push('/teacher/quiz')
+          router.refresh()
+        }}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogContent sx={{ textAlign: 'center', py: 4 }}>
+          <CheckCircle size={64} color="#4caf50" style={{ marginBottom: 16 }} />
+          <Typography variant="h5" gutterBottom>
+            Quiz Created Successfully!
+          </Typography>
+          <Typography color="text.secondary">
+            Your quiz has been saved and is ready to use.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ justifyContent: 'center', pb: 3 }}>
+          <Button
+            variant="contained"
+            onClick={() => {
+              setSuccessModal(false)
+              router.push('/teacher/quiz')
+              router.refresh()
+            }}
+          >
+            Go to Quizzes
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          severity={snackbar.severity}
+          variant="filled"
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </div>
   )
 }

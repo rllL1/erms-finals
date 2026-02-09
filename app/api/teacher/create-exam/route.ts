@@ -7,6 +7,7 @@ interface ExamQuestion {
   options?: string[]
   correctAnswer?: string
   points?: number
+  imageUrl?: string
 }
 
 export async function POST(request: Request) {
@@ -72,6 +73,8 @@ export async function POST(request: Request) {
       options: q.options ? JSON.stringify(q.options) : null,
       correct_answer: q.correctAnswer || '',
       order_number: index + 1,
+      points: q.points || 1,
+      image_url: q.imageUrl || null,
     }))
 
     const { error: questionsError } = await supabase

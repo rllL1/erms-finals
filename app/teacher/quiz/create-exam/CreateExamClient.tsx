@@ -16,8 +16,10 @@ import {
   Alert,
   Checkbox,
   FormControlLabel,
+  CircularProgress,
+  Snackbar,
 } from '@mui/material'
-import { ArrowLeft, Delete, Upload, Sparkles, Printer } from 'lucide-react'
+import { ArrowLeft, Delete, Upload, Sparkles, Printer, Image as ImageIcon, X } from 'lucide-react'
 import { generateExamPDF } from '../utils/pdfGenerator'
 
 type ExamType = 'enumeration' | 'multiple-choice' | 'identification' | 'true-false' | 'essay' | 'math'
@@ -30,6 +32,9 @@ interface ExamQuestion {
   options?: string[]
   correct_answer?: string
   points: number
+  imageUrl?: string
+  imageFile?: File
+  imageUploading?: boolean
 }
 
 interface Teacher {
@@ -70,6 +75,13 @@ export default function CreateExamClient({ teacher }: { teacher: Teacher }) {
     'essay': 2,
     'math': 5,
   })
+  
+  // Snackbar state
+  const [snackbar, setSnackbar] = useState<{
+    open: boolean
+    message: string
+    severity: 'success' | 'error' | 'warning' | 'info'
+  }>({ open: false, message: '', severity: 'info' })
 
   const handleAddQuestion = (type: ExamType) => {
     const newQuestion: ExamQuestion = {
@@ -78,8 +90,66 @@ export default function CreateExamClient({ teacher }: { teacher: Teacher }) {
       question: '',
       options: type === 'multiple-choice' ? ['', '', '', ''] : undefined,
       points: 1,
+      imageUrl: undefined,
+      imageFile: undefined,
+      imageUploading: false,
     }
     setQuestions([...questions, newQuestion])
+  }
+
+  const handleImageUpload = async (questionId: string, file: File) => {
+    // Validate file type
+    const validTypes = ['image/jpeg', 'image/png', 'image/jpg']
+    if (!validTypes.includes(file.type)) {
+      setSnackbar({ open: true, message: 'Invalid file type. Only JPG and PNG are allowed.', severity: 'error' })
+      return
+    }
+
+    // Validate file size (max 5MB)
+    const maxSize = 5 * 1024 * 1024
+    if (file.size > maxSize) {
+      setSnackbar({ open: true, message: 'File too large. Maximum size is 5MB.', severity: 'error' })
+      return
+    }
+
+    // Set uploading state
+    setQuestions(questions.map(q => 
+      q.id === questionId ? { ...q, imageUploading: true } : q
+    ))
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('questionId', questionId)
+
+      const response = await fetch('/api/teacher/upload-question-image', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setQuestions(questions.map(q => 
+          q.id === questionId ? { ...q, imageUrl: data.imageUrl, imageFile: file, imageUploading: false } : q
+        ))
+        setSnackbar({ open: true, message: 'Image uploaded successfully', severity: 'success' })
+      } else {
+        throw new Error(data.error || 'Failed to upload image')
+      }
+    } catch (error) {
+      console.error('Error uploading image:', error)
+      setQuestions(questions.map(q => 
+        q.id === questionId ? { ...q, imageUploading: false } : q
+      ))
+      setSnackbar({ open: true, message: `Failed to upload image: ${error instanceof Error ? error.message : 'Unknown error'}`, severity: 'error' })
+    }
+  }
+
+  const handleRemoveImage = (questionId: string) => {
+    setQuestions(questions.map(q => 
+      q.id === questionId ? { ...q, imageUrl: undefined, imageFile: undefined } : q
+    ))
   }
 
   const handleDeleteQuestion = (id: string) => {
@@ -554,6 +624,58 @@ export default function CreateExamClient({ teacher }: { teacher: Teacher }) {
                   </Box>
                 </Box>
 
+                {/* Image Upload Section */}
+                <Box sx={{ mb: 2 }}>
+                  {question.imageUrl ? (
+                    <Box sx={{ position: 'relative', display: 'inline-block', mb: 1 }}>
+                      <img 
+                        src={question.imageUrl} 
+                        alt="Question image" 
+                        style={{ 
+                          maxWidth: '100%', 
+                          maxHeight: '200px', 
+                          borderRadius: '8px',
+                          border: '1px solid #ddd'
+                        }} 
+                      />
+                      <IconButton
+                        size="small"
+                        onClick={() => handleRemoveImage(question.id)}
+                        sx={{ 
+                          position: 'absolute', 
+                          top: 4, 
+                          right: 4, 
+                          bgcolor: 'rgba(255,255,255,0.9)',
+                          '&:hover': { bgcolor: 'rgba(255,255,255,1)' }
+                        }}
+                      >
+                        <X size={16} />
+                      </IconButton>
+                    </Box>
+                  ) : (
+                    <Button
+                      variant="outlined"
+                      component="label"
+                      size="small"
+                      startIcon={question.imageUploading ? <CircularProgress size={16} /> : <ImageIcon size={16} />}
+                      disabled={question.imageUploading}
+                      sx={{ mb: 1 }}
+                    >
+                      {question.imageUploading ? 'Uploading...' : 'Add Image (Optional)'}
+                      <input
+                        type="file"
+                        hidden
+                        accept="image/jpeg,image/png,image/jpg"
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            handleImageUpload(question.id, e.target.files[0])
+                          }
+                        }}
+                      />
+                    </Button>
+                  )}
+                </Box>
+
                 <TextField
                   fullWidth
                   multiline
@@ -640,6 +762,23 @@ export default function CreateExamClient({ teacher }: { teacher: Teacher }) {
           </Box>
         )}
       </Card>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          severity={snackbar.severity}
+          variant="filled"
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   )
 }

@@ -28,17 +28,10 @@ export default function LoginForm() {
       const result = await login(formData)
       if (result?.error) {
         setError(result.error)
-        setIsLoading(false)
       }
-      // If no error returned and no redirect happened, login was successful
-    } catch (err: unknown) {
-      // Check if it's a Next.js redirect error
-      // These are expected for successful login and should not show an error message
-      const error = err as { digest?: string; message?: string }
-      if (error?.digest?.startsWith('NEXT_REDIRECT') || error?.message?.includes('NEXT_REDIRECT')) {
-        return // This is a successful redirect, not an error
-      }
+    } catch {
       setError('An unexpected error occurred. Please try again.')
+    } finally {
       setIsLoading(false)
     }
   }
@@ -175,13 +168,14 @@ export default function LoginForm() {
 
           {/* Right Section - Background Image (Hidden on mobile) */}
           {!isMobile && (
-            <div className="w-[45%] relative overflow-hidden">
+            <div className="w-[45%] relative overflow-hidden flex items-center justify-center">
               {/* Background Image */}
               <Image
                 src="/bg-sdsc.png"
                 alt="Background"
-                fill
-                className="object-cover object-center"
+                width={600}
+                height={600}
+                className="object-contain max-w-[100%] max-h-[90%]"
                 priority
               />
                 

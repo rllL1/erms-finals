@@ -23,6 +23,7 @@ interface Question {
   correct_answer?: string
   points?: number
   order_number: number
+  image_url?: string
 }
 
 interface Quiz {
@@ -31,7 +32,6 @@ interface Quiz {
   quiz_type?: string
   description?: string
   start_date: string | null
-  end_date: string | null
   time_limit?: number
   created_at: string
 }
@@ -101,19 +101,11 @@ export default function ViewQuizClient({ quiz, questions }: ViewQuizClientProps)
 
         <Divider sx={{ my: 2 }} />
 
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
-          <Box>
-            <Typography variant="subtitle2" color="text.secondary">
-              Start Date
-            </Typography>
-            <Typography variant="body1">{formatDate(quiz.start_date)}</Typography>
-          </Box>
-          <Box>
-            <Typography variant="subtitle2" color="text.secondary">
-              End Date
-            </Typography>
-            <Typography variant="body1">{formatDate(quiz.end_date)}</Typography>
-          </Box>
+        <Box>
+          <Typography variant="subtitle2" color="text.secondary">
+            Start Date
+          </Typography>
+          <Typography variant="body1">{formatDate(quiz.start_date)}</Typography>
         </Box>
       </Paper>
 
@@ -142,6 +134,22 @@ export default function ViewQuizClient({ quiz, questions }: ViewQuizClientProps)
                   color="primary"
                 />
               </Box>
+
+              {/* Display question image if available */}
+              {question.image_url && (
+                <Box sx={{ mb: 2, textAlign: 'center' }}>
+                  <img 
+                    src={question.image_url} 
+                    alt={`Question ${index + 1} image`}
+                    style={{ 
+                      maxWidth: '100%', 
+                      maxHeight: '250px', 
+                      borderRadius: '8px',
+                      border: '1px solid #ddd'
+                    }} 
+                  />
+                </Box>
+              )}
 
               <Typography variant="body1" paragraph>
                 {question.question}

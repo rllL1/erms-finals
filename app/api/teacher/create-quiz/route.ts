@@ -6,12 +6,14 @@ interface Question {
   question: string
   options?: string[]
   correctAnswer: string
+  points?: number
+  imageUrl?: string
 }
 
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { teacherId, title, type, quizType, startDate, endDate, showAnswerKey, questions } = body
+    const { teacherId, title, type, quizType, startDate, showAnswerKey, questions } = body
 
     console.log('Received quiz creation request:', { teacherId, title, type, questionsCount: questions?.length })
 
@@ -50,7 +52,6 @@ export async function POST(request: Request) {
         type: 'quiz',
         quiz_type: quizType,
         start_date: startDate || null,
-        end_date: endDate || null,
         show_answer_key: showAnswerKey || false,
       })
       .select()
@@ -71,6 +72,8 @@ export async function POST(request: Request) {
       options: q.options ? JSON.stringify(q.options) : null,
       correct_answer: q.correctAnswer,
       order_number: index + 1,
+      points: q.points || 1,
+      image_url: q.imageUrl || null,
     }))
 
     const { error: questionsError } = await supabase

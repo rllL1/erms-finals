@@ -14,8 +14,9 @@ import {
   MenuItem,
   Alert,
   Snackbar,
+  CircularProgress,
 } from '@mui/material'
-import { ArrowLeft, Save, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, Save, Plus, Trash2, Image as ImageIcon, X } from 'lucide-react'
 
 interface Question {
   id: string
@@ -25,6 +26,7 @@ interface Question {
   correct_answer?: string
   points?: number
   order_number: number
+  image_url?: string
 }
 
 interface Quiz {
@@ -33,7 +35,6 @@ interface Quiz {
   quiz_type?: string
   description?: string
   start_date: string | null
-  end_date: string | null
   time_limit?: number
 }
 
@@ -48,6 +49,54 @@ export default function EditQuizClient({ quiz: initialQuiz, questions: initialQu
   const [questions, setQuestions] = useState(initialQuestions)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+  const [uploadingImageIndex, setUploadingImageIndex] = useState<number | null>(null)
+
+  const handleImageUpload = async (index: number, file: File) => {
+    // Validate file type
+    const validTypes = ['image/jpeg', 'image/png', 'image/jpg']
+    if (!validTypes.includes(file.type)) {
+      setMessage({ type: 'error', text: 'Invalid file type. Only JPG and PNG are allowed.' })
+      return
+    }
+
+    // Validate file size (max 5MB)
+    const maxSize = 5 * 1024 * 1024
+    if (file.size > maxSize) {
+      setMessage({ type: 'error', text: 'File too large. Maximum size is 5MB.' })
+      return
+    }
+
+    setUploadingImageIndex(index)
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('questionId', questions[index].id)
+
+      const response = await fetch('/api/teacher/upload-question-image', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        updateQuestion(index, 'image_url', data.imageUrl)
+        setMessage({ type: 'success', text: 'Image uploaded successfully' })
+      } else {
+        throw new Error(data.error || 'Failed to upload image')
+      }
+    } catch (error) {
+      console.error('Error uploading image:', error)
+      setMessage({ type: 'error', text: `Failed to upload image: ${error instanceof Error ? error.message : 'Unknown error'}` })
+    } finally {
+      setUploadingImageIndex(null)
+    }
+  }
+
+  const handleRemoveImage = (index: number) => {
+    updateQuestion(index, 'image_url', undefined)
+  }
 
   const handleSave = async () => {
     setSaving(true)
@@ -61,7 +110,6 @@ export default function EditQuizClient({ quiz: initialQuiz, questions: initialQu
           quiz_type: quiz.quiz_type,
           description: quiz.description,
           start_date: quiz.start_date,
-          end_date: quiz.end_date,
           time_limit: quiz.time_limit,
         }),
       })
@@ -169,19 +217,12 @@ export default function EditQuizClient({ quiz: initialQuiz, questions: initialQu
           margin="normal"
         />
 
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr' }, gap: 2, mt: 2 }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2, mt: 2 }}>
           <TextField
             label="Start Date"
             type="datetime-local"
             value={quiz.start_date ? new Date(quiz.start_date).toISOString().slice(0, 16) : ''}
             onChange={(e) => setQuiz({ ...quiz, start_date: e.target.value })}
-            InputLabelProps={{ shrink: true }}
-          />
-          <TextField
-            label="End Date"
-            type="datetime-local"
-            value={quiz.end_date ? new Date(quiz.end_date).toISOString().slice(0, 16) : ''}
-            onChange={(e) => setQuiz({ ...quiz, end_date: e.target.value })}
             InputLabelProps={{ shrink: true }}
           />
           <TextField
@@ -208,6 +249,58 @@ export default function EditQuizClient({ quiz: initialQuiz, questions: initialQu
               <IconButton onClick={() => handleDeleteQuestion(index)} color="error" size="small">
                 <Trash2 size={20} />
               </IconButton>
+            </Box>
+
+            {/* Image Upload Section */}
+            <Box sx={{ mb: 2 }}>
+              {question.image_url ? (
+                <Box sx={{ position: 'relative', display: 'inline-block', mb: 1 }}>
+                  <img 
+                    src={question.image_url} 
+                    alt="Question image" 
+                    style={{ 
+                      maxWidth: '100%', 
+                      maxHeight: '200px', 
+                      borderRadius: '8px',
+                      border: '1px solid #ddd'
+                    }} 
+                  />
+                  <IconButton
+                    size="small"
+                    onClick={() => handleRemoveImage(index)}
+                    sx={{ 
+                      position: 'absolute', 
+                      top: 4, 
+                      right: 4, 
+                      bgcolor: 'rgba(255,255,255,0.9)',
+                      '&:hover': { bgcolor: 'rgba(255,255,255,1)' }
+                    }}
+                  >
+                    <X size={16} />
+                  </IconButton>
+                </Box>
+              ) : (
+                <Button
+                  variant="outlined"
+                  component="label"
+                  size="small"
+                  startIcon={uploadingImageIndex === index ? <CircularProgress size={16} /> : <ImageIcon size={16} />}
+                  disabled={uploadingImageIndex === index}
+                  sx={{ mb: 1 }}
+                >
+                  {uploadingImageIndex === index ? 'Uploading...' : 'Add Image (Optional)'}
+                  <input
+                    type="file"
+                    hidden
+                    accept="image/jpeg,image/png,image/jpg"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        handleImageUpload(index, e.target.files[0])
+                      }
+                    }}
+                  />
+                </Button>
+              )}
             </Box>
 
             <TextField
