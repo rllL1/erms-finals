@@ -47,6 +47,7 @@ interface Question {
   correct_answer?: string
   points?: number
   order_number: number
+  image_url?: string
 }
 
 interface QuizDetails extends Quiz {
