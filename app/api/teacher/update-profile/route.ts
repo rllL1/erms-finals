@@ -12,32 +12,26 @@ export async function POST(request: Request) {
     }
 
     // Support both FormData and JSON body
-    let studentName: string | null = null
+    let teacherName: string | null = null
     let email: string | null = null
-    let course: string | null = null
 
     const contentType = request.headers.get('content-type') || ''
     if (contentType.includes('application/json')) {
       const body = await request.json()
-      studentName = body.studentName
+      teacherName = body.teacherName
       email = body.email
-      course = body.course
     } else {
       const formData = await request.formData()
-      studentName = formData.get('studentName') as string
+      teacherName = formData.get('teacherName') as string
       email = formData.get('email') as string
-      course = formData.get('course') as string
     }
 
     // Validate required fields
-    if (!studentName?.trim()) {
+    if (!teacherName?.trim()) {
       return NextResponse.json({ error: 'Full name is required.' }, { status: 400 })
     }
     if (!email?.trim()) {
       return NextResponse.json({ error: 'Email address is required.' }, { status: 400 })
-    }
-    if (!course?.trim()) {
-      return NextResponse.json({ error: 'Course is required.' }, { status: 400 })
     }
 
     // Validate email format
@@ -46,14 +40,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid email format. Please enter a valid email address.' }, { status: 400 })
     }
 
-    const trimmedName = studentName.trim()
+    const trimmedName = teacherName.trim()
     const trimmedEmail = email.trim().toLowerCase()
-    const trimmedCourse = course.trim()
 
     // Check if email is already used by another user
     if (trimmedEmail !== user.email) {
       const adminSupabase = createAdminClient()
-      
+
       // Check in profiles table
       const { data: existingProfile } = await adminSupabase
         .from('profiles')
@@ -67,20 +60,19 @@ export async function POST(request: Request) {
       }
     }
 
-    // Update student record
-    const { error: studentError } = await supabase
-      .from('students')
+    // Update teacher record
+    const { error: teacherError } = await supabase
+      .from('teachers')
       .update({
-        student_name: trimmedName,
+        teacher_name: trimmedName,
         email: trimmedEmail,
-        course: trimmedCourse,
         updated_at: new Date().toISOString(),
       })
       .eq('user_id', user.id)
 
-    if (studentError) {
-      console.error('Student update error:', studentError)
-      if (studentError.code === '23505') {
+    if (teacherError) {
+      console.error('Teacher update error:', teacherError)
+      if (teacherError.code === '23505') {
         return NextResponse.json({ error: 'This email address is already in use.' }, { status: 409 })
       }
       return NextResponse.json({ error: 'Failed to update profile. Please try again.' }, { status: 500 })
@@ -108,8 +100,8 @@ export async function POST(request: Request) {
 
       if (authError) {
         console.error('Auth email update error:', authError)
-        return NextResponse.json({ 
-          error: 'Profile name updated, but email change failed. The email may already be in use.' 
+        return NextResponse.json({
+          error: 'Profile name updated, but email change failed. The email may already be in use.'
         }, { status: 500 })
       }
     }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Box,
@@ -9,8 +9,13 @@ import {
   TextField,
   Typography,
   IconButton,
+  Alert,
+  CircularProgress,
 } from '@mui/material'
 import { ArrowLeft, Delete, Plus } from 'lucide-react'
+import NotificationModal, { type ModalSeverity } from '../components/NotificationModal'
+import ConfirmationModal from '@/app/components/ConfirmationModal'
+import { isDuplicateQuestion } from '../utils/duplicateDetection'
 
 interface Question {
   id: string
@@ -33,6 +38,31 @@ export default function CreateAssignmentClient({ teacher }: { teacher: Teacher }
   const [questions, setQuestions] = useState<Question[]>([])
   const [loading, setLoading] = useState(false)
 
+  // Notification modal state
+  const [modal, setModal] = useState<{
+    open: boolean
+    title?: string
+    message: string
+    severity: ModalSeverity
+    autoCloseMs?: number
+    actionLabel?: string
+    onAction?: () => void
+  }>({ open: false, message: '', severity: 'info' })
+
+  // Duplicate warning per question (real-time)
+  const [duplicateWarnings, setDuplicateWarnings] = useState<Record<string, boolean>>({})
+
+  // Delete question confirmation
+  const [questionToDelete, setQuestionToDelete] = useState<string | null>(null)
+
+  const showModal = useCallback((severity: ModalSeverity, message: string, opts?: { title?: string; autoCloseMs?: number; actionLabel?: string; onAction?: () => void }) => {
+    setModal({ open: true, message, severity, ...opts })
+  }, [])
+
+  const closeModal = useCallback(() => {
+    setModal(prev => ({ ...prev, open: false }))
+  }, [])
+
   const handleAddQuestion = () => {
     const newQuestion: Question = {
       id: Date.now().toString(),
@@ -42,19 +72,49 @@ export default function CreateAssignmentClient({ teacher }: { teacher: Teacher }
   }
 
   const handleDeleteQuestion = (id: string) => {
-    setQuestions(questions.filter(q => q.id !== id))
+    setQuestionToDelete(id)
+  }
+
+  const handleDeleteQuestionConfirm = () => {
+    if (!questionToDelete) return
+    setQuestions(questions.filter(q => q.id !== questionToDelete))
+    setDuplicateWarnings(prev => {
+      const next = { ...prev }
+      delete next[questionToDelete]
+      return next
+    })
+    setQuestionToDelete(null)
   }
 
   const handleQuestionChange = (id: string, value: string) => {
-    setQuestions(questions.map(q => 
-      q.id === id ? { ...q, question: value } : q
-    ))
+    setQuestions(prev => {
+      const updated = prev.map(q =>
+        q.id === id ? { ...q, question: value } : q
+      )
+
+      // Real-time duplicate detection
+      const questionIndex = updated.findIndex(q => q.id === id)
+      const hasDuplicate = isDuplicateQuestion(value, updated, questionIndex)
+      setDuplicateWarnings(prevW => ({ ...prevW, [id]: hasDuplicate }))
+
+      return updated
+    })
   }
 
   const handleCreateAssignment = async () => {
     if (!title || !description || !dueDate) {
-      alert('Please fill in all required fields')
+      showModal('warning', 'Please fill in all required fields.')
       return
+    }
+
+    // Check for duplicate questions before saving
+    for (let i = 0; i < questions.length; i++) {
+      if (isDuplicateQuestion(questions[i].question, questions, i)) {
+        showModal('duplicate', 'This question already exists. Duplicate questions are not allowed.', {
+          title: 'Duplicate Detected',
+        })
+        return
+      }
     }
 
     setLoading(true)
@@ -79,12 +139,19 @@ export default function CreateAssignmentClient({ teacher }: { teacher: Teacher }
         throw new Error(errorData.error || 'Failed to create assignment')
       }
 
-      alert('Assignment created successfully!')
-      router.push('/teacher/quiz')
-      router.refresh()
+      showModal('success', 'Your assignment was created successfully.', {
+        title: 'Assignment Created!',
+        actionLabel: 'Go to Quizzes',
+        onAction: () => {
+          closeModal()
+          router.push('/teacher/quiz')
+          router.refresh()
+        },
+        autoCloseMs: 5000,
+      })
     } catch (error) {
       console.error('Error creating assignment:', error)
-      alert(`Failed to create assignment: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      showModal('error', `Failed to create assignment: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setLoading(false)
     }
@@ -188,7 +255,14 @@ export default function CreateAssignmentClient({ teacher }: { teacher: Teacher }
               value={question.question}
               onChange={(e) => handleQuestionChange(question.id, e.target.value)}
               placeholder="Enter your question or instruction here"
+              error={duplicateWarnings[question.id]}
+              helperText={duplicateWarnings[question.id] ? 'Duplicate question detected — this question already exists.' : ''}
             />
+            {duplicateWarnings[question.id] && (
+              <Alert severity="error" sx={{ mt: 0.5 }}>
+                This question already exists. Duplicate questions are not allowed.
+              </Alert>
+            )}
           </Card>
         ))}
 
@@ -203,13 +277,42 @@ export default function CreateAssignmentClient({ teacher }: { teacher: Teacher }
           <Button
             onClick={handleCreateAssignment}
             variant="contained"
-            disabled={loading || !title || !description || !dueDate}
+            disabled={loading || !title || !description || !dueDate || Object.values(duplicateWarnings).some(Boolean)}
             fullWidth
           >
-            Create Assignment
+            {loading ? <CircularProgress size={24} sx={{ color: 'white' }} /> : 'Create Assignment'}
           </Button>
         </Box>
       </Card>
+
+      {/* Notification Modal */}
+      {/* Notification Modal */}
+      <NotificationModal
+        open={modal.open}
+        onClose={() => {
+          if (modal.onAction) {
+            modal.onAction()
+          } else {
+            closeModal()
+          }
+        }}
+        title={modal.title}
+        message={modal.message}
+        severity={modal.severity}
+        autoCloseMs={modal.autoCloseMs}
+        actionLabel={modal.actionLabel}
+        onAction={modal.onAction}
+      />
+      {/* Delete Question Confirmation */}
+      <ConfirmationModal
+        open={!!questionToDelete}
+        onClose={() => setQuestionToDelete(null)}
+        onConfirm={handleDeleteQuestionConfirm}
+        title="Delete Question"
+        message="Are you sure you want to delete this question? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+      />
     </Box>
   )
 }

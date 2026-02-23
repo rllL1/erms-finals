@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Box,
@@ -13,10 +13,12 @@ import {
   CardContent,
   MenuItem,
   Alert,
-  Snackbar,
   CircularProgress,
 } from '@mui/material'
 import { ArrowLeft, Save, Plus, Trash2, Image as ImageIcon, X } from 'lucide-react'
+import NotificationModal, { type ModalSeverity } from '../../components/NotificationModal'
+import ConfirmationModal from '@/app/components/ConfirmationModal'
+import { isDuplicateQuestion } from '../../utils/duplicateDetection'
 
 interface Question {
   id: string
@@ -48,21 +50,45 @@ export default function EditQuizClient({ quiz: initialQuiz, questions: initialQu
   const [quiz, setQuiz] = useState(initialQuiz)
   const [questions, setQuestions] = useState(initialQuestions)
   const [saving, setSaving] = useState(false)
-  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
   const [uploadingImageIndex, setUploadingImageIndex] = useState<number | null>(null)
+
+  // Notification modal state
+  const [modal, setModal] = useState<{
+    open: boolean
+    title?: string
+    message: string
+    severity: ModalSeverity
+    autoCloseMs?: number
+    actionLabel?: string
+    onAction?: () => void
+  }>({ open: false, message: '', severity: 'info' })
+
+  // Duplicate warning per question (real-time)
+  const [duplicateWarnings, setDuplicateWarnings] = useState<Record<number, boolean>>({})
+
+  // Delete question confirmation
+  const [questionToDelete, setQuestionToDelete] = useState<number | null>(null)
+
+  const showModal = useCallback((severity: ModalSeverity, message: string, opts?: { title?: string; autoCloseMs?: number; actionLabel?: string; onAction?: () => void }) => {
+    setModal({ open: true, message, severity, ...opts })
+  }, [])
+
+  const closeModal = useCallback(() => {
+    setModal(prev => ({ ...prev, open: false }))
+  }, [])
 
   const handleImageUpload = async (index: number, file: File) => {
     // Validate file type
     const validTypes = ['image/jpeg', 'image/png', 'image/jpg']
     if (!validTypes.includes(file.type)) {
-      setMessage({ type: 'error', text: 'Invalid file type. Only JPG and PNG are allowed.' })
+      showModal('error', 'Invalid file type. Only JPG and PNG are allowed.')
       return
     }
 
     // Validate file size (max 5MB)
     const maxSize = 5 * 1024 * 1024
     if (file.size > maxSize) {
-      setMessage({ type: 'error', text: 'File too large. Maximum size is 5MB.' })
+      showModal('error', 'File too large. Maximum size is 5MB.')
       return
     }
 
@@ -82,13 +108,13 @@ export default function EditQuizClient({ quiz: initialQuiz, questions: initialQu
 
       if (response.ok) {
         updateQuestion(index, 'image_url', data.imageUrl)
-        setMessage({ type: 'success', text: 'Image uploaded successfully' })
+        showModal('success', 'Image uploaded successfully.', { autoCloseMs: 2000 })
       } else {
         throw new Error(data.error || 'Failed to upload image')
       }
     } catch (error) {
       console.error('Error uploading image:', error)
-      setMessage({ type: 'error', text: `Failed to upload image: ${error instanceof Error ? error.message : 'Unknown error'}` })
+      showModal('error', `Failed to upload image: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setUploadingImageIndex(null)
     }
@@ -99,6 +125,16 @@ export default function EditQuizClient({ quiz: initialQuiz, questions: initialQu
   }
 
   const handleSave = async () => {
+    // Check for duplicate questions before saving
+    for (let i = 0; i < questions.length; i++) {
+      if (isDuplicateQuestion(questions[i].question, questions, i)) {
+        showModal('duplicate', 'This question already exists. Duplicate questions are not allowed.', {
+          title: 'Duplicate Detected',
+        })
+        return
+      }
+    }
+
     setSaving(true)
     try {
       // Update quiz
@@ -125,12 +161,17 @@ export default function EditQuizClient({ quiz: initialQuiz, questions: initialQu
 
       if (!questionsResponse.ok) throw new Error('Failed to update questions')
 
-      setMessage({ type: 'success', text: 'Quiz updated successfully!' })
-      setTimeout(() => {
-        router.push('/teacher/quiz')
-      }, 1500)
+      showModal('success', 'Quiz updated successfully!', {
+        title: 'Quiz Updated!',
+        actionLabel: 'Go to Quizzes',
+        onAction: () => {
+          closeModal()
+          router.push('/teacher/quiz')
+        },
+        autoCloseMs: 3000,
+      })
     } catch (error) {
-      setMessage({ type: 'error', text: 'Failed to save quiz. Please try again.' })
+      showModal('error', 'Failed to save quiz. Please try again.')
     } finally {
       setSaving(false)
     }
@@ -150,14 +191,31 @@ export default function EditQuizClient({ quiz: initialQuiz, questions: initialQu
   }
 
   const handleDeleteQuestion = (index: number) => {
-    const updatedQuestions = questions.filter((_, i) => i !== index)
+    setQuestionToDelete(index)
+  }
+
+  const handleDeleteQuestionConfirm = () => {
+    if (questionToDelete === null) return
+    const updatedQuestions = questions.filter((_, i) => i !== questionToDelete)
     setQuestions(updatedQuestions.map((q, i) => ({ ...q, order_number: i + 1 })))
+    setDuplicateWarnings(prev => {
+      const next = { ...prev }
+      delete next[questionToDelete]
+      return next
+    })
+    setQuestionToDelete(null)
   }
 
   const updateQuestion = (index: number, field: string, value: any) => {
     const updated = [...questions]
     updated[index] = { ...updated[index], [field]: value }
     setQuestions(updated)
+
+    // Real-time duplicate detection when question text changes
+    if (field === 'question' && typeof value === 'string') {
+      const hasDuplicate = isDuplicateQuestion(value, updated, index)
+      setDuplicateWarnings(prev => ({ ...prev, [index]: hasDuplicate }))
+    }
   }
 
   return (
@@ -171,10 +229,10 @@ export default function EditQuizClient({ quiz: initialQuiz, questions: initialQu
           Cancel
         </Button>
         <Button
-          startIcon={<Save />}
+          startIcon={saving ? <CircularProgress size={20} sx={{ color: 'white' }} /> : <Save />}
           onClick={handleSave}
           variant="contained"
-          disabled={saving}
+          disabled={saving || Object.values(duplicateWarnings).some(Boolean)}
         >
           {saving ? 'Saving...' : 'Save Quiz'}
         </Button>
@@ -326,7 +384,14 @@ export default function EditQuizClient({ quiz: initialQuiz, questions: initialQu
               onChange={(e) => updateQuestion(index, 'question', e.target.value)}
               margin="normal"
               required
+              error={duplicateWarnings[index]}
+              helperText={duplicateWarnings[index] ? 'Duplicate question detected — this question already exists.' : ''}
             />
+            {duplicateWarnings[index] && (
+              <Alert severity="error" sx={{ mb: 1 }}>
+                This question already exists. Duplicate questions are not allowed.
+              </Alert>
+            )}
 
             <TextField
               label="Points"
@@ -387,15 +452,32 @@ export default function EditQuizClient({ quiz: initialQuiz, questions: initialQu
         </Card>
       ))}
 
-      <Snackbar
-        open={!!message}
-        autoHideDuration={6000}
-        onClose={() => setMessage(null)}
-      >
-        <Alert severity={message?.type} onClose={() => setMessage(null)}>
-          {message?.text}
-        </Alert>
-      </Snackbar>
+      <NotificationModal
+        open={modal.open}
+        onClose={() => {
+          if (modal.onAction) {
+            modal.onAction()
+          } else {
+            closeModal()
+          }
+        }}
+        title={modal.title}
+        message={modal.message}
+        severity={modal.severity}
+        autoCloseMs={modal.autoCloseMs}
+        actionLabel={modal.actionLabel}
+        onAction={modal.onAction}
+      />
+      {/* Delete Question Confirmation */}
+      <ConfirmationModal
+        open={questionToDelete !== null}
+        onClose={() => setQuestionToDelete(null)}
+        onConfirm={handleDeleteQuestionConfirm}
+        title="Delete Question"
+        message="Are you sure you want to delete this question? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+      />
     </Box>
   )
 }

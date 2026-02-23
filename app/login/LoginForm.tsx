@@ -2,21 +2,28 @@
 
 import { useState, useEffect } from 'react'
 import { login } from '@/lib/actions/auth'
-import { Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react'
+import { Loader2, AlertCircle, Eye, EyeOff, CheckCircle } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import Box from '@mui/material/Box'
 import TextField from '@mui/material/TextField'
 import InputAdornment from '@mui/material/InputAdornment'
 import IconButton from '@mui/material/IconButton'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import { useTheme } from '@mui/material/styles'
+import Modal from '@mui/material/Modal'
+import Typography from '@mui/material/Typography'
 
 export default function LoginForm() {
+  const router = useRouter()
   const [error, setError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({})
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const [showSuccessModal, setShowSuccessModal] = useState(false)
+  const [redirectRole, setRedirectRole] = useState<string | null>(null)
   const theme = useTheme()
   const isMobileQuery = useMediaQuery(theme.breakpoints.down('md'))
   const isSmallMobileQuery = useMediaQuery(theme.breakpoints.down('sm'))
@@ -29,17 +36,76 @@ export default function LoginForm() {
     setMounted(true)
   }, [])
 
-  async function handleSubmit(formData: FormData) {
-    setIsLoading(true)
+  // Auto-redirect after success modal
+  useEffect(() => {
+    if (showSuccessModal && redirectRole) {
+      const timer = setTimeout(() => {
+        router.push(`/${redirectRole}/dashboard`)
+      }, 1500)
+      return () => clearTimeout(timer)
+    }
+  }, [showSuccessModal, redirectRole, router])
+
+  function validateEmail(email: string): boolean {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+  }
+
+  function clearFieldError(field: 'email' | 'password') {
+    setFieldErrors(prev => {
+      const next = { ...prev }
+      delete next[field]
+      return next
+    })
     setError(null)
+  }
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setError(null)
+    setFieldErrors({})
+
+    const formData = new FormData(e.currentTarget)
+    const email = (formData.get('email') as string || '').trim()
+    const password = formData.get('password') as string || ''
+
+    // Client-side validation
+    const errors: { email?: string; password?: string } = {}
+
+    if (!email && !password) {
+      setError('All fields are required.')
+      errors.email = ' '
+      errors.password = ' '
+      setFieldErrors(errors)
+      return
+    }
+    if (!email) {
+      errors.email = 'Email address is required.'
+    } else if (!validateEmail(email)) {
+      errors.email = 'Email format is invalid.'
+    }
+    if (!password) {
+      errors.password = 'Password is required.'
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors)
+      return
+    }
+
+    setIsLoading(true)
 
     try {
       const result = await login(formData)
       if (result?.error) {
         setError(result.error)
+      } else if (result?.success && result?.role) {
+        // Show success modal, then redirect
+        setRedirectRole(result.role)
+        setShowSuccessModal(true)
       }
     } catch {
-      setError('An unexpected error occurred. Please try again.')
+      // Only show generic error for real server failures
+      setError('Server error. Please try again later.')
     } finally {
       setIsLoading(false)
     }
@@ -85,7 +151,7 @@ export default function LoginForm() {
                 )}
 
                 {/* Login Form */}
-                <form action={handleSubmit} className="space-y-5">
+                <form onSubmit={handleSubmit} className="space-y-5">
                   {/* Email Field */}
                   <Box sx={{ width: '100%', maxWidth: '100%' }}>
                     <TextField
@@ -99,6 +165,9 @@ export default function LoginForm() {
                       disabled={isLoading}
                       variant="outlined"
                       size={isSmallMobile ? 'small' : 'medium'}
+                      error={!!fieldErrors.email && fieldErrors.email !== ' '}
+                      helperText={fieldErrors.email !== ' ' ? fieldErrors.email : undefined}
+                      onChange={() => clearFieldError('email')}
                     />
                   </Box>
 
@@ -115,6 +184,9 @@ export default function LoginForm() {
                       disabled={isLoading}
                       variant="outlined"
                       size={isSmallMobile ? 'small' : 'medium'}
+                      error={!!fieldErrors.password && fieldErrors.password !== ' '}
+                      helperText={fieldErrors.password !== ' ' ? fieldErrors.password : undefined}
+                      onChange={() => clearFieldError('password')}
                       InputProps={{
                         endAdornment: (
                           <InputAdornment position="end">
@@ -209,6 +281,58 @@ export default function LoginForm() {
           )}
         </div>
       </div>
+
+      {/* Login Success Modal */}
+      <Modal
+        open={showSuccessModal}
+        aria-labelledby="login-success-title"
+        slotProps={{
+          backdrop: {
+            sx: { backgroundColor: 'rgba(0,0,0,0.5)' }
+          }
+        }}
+      >
+        <Box
+          sx={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            bgcolor: 'background.paper',
+            borderRadius: 3,
+            boxShadow: 24,
+            p: 4,
+            textAlign: 'center',
+            minWidth: 320,
+            maxWidth: 400,
+          }}
+        >
+          <Box
+            sx={{
+              width: 64,
+              height: 64,
+              borderRadius: '50%',
+              bgcolor: '#dcfce7',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              mx: 'auto',
+              mb: 2,
+            }}
+          >
+            <CheckCircle size={36} color="#16a34a" />
+          </Box>
+          <Typography id="login-success-title" variant="h5" fontWeight="bold" gutterBottom>
+            Login Successful
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Redirecting to your dashboard...
+          </Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+            <Loader2 className="w-5 h-5 animate-spin text-green-600" />
+          </Box>
+        </Box>
+      </Modal>
     </div>
   )
 }

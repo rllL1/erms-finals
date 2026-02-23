@@ -21,6 +21,7 @@ import {
 } from '@mui/material'
 import { Plus, BookOpen, Clock, User, ArrowRight } from 'lucide-react'
 import type { ClassStudent } from '@/lib/types'
+import NotificationModal, { type ModalSeverity } from '@/app/components/NotificationModal'
 
 interface Student {
   id: string
@@ -39,6 +40,7 @@ export default function StudentClassClient({ student }: { student: Student }) {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [mounted, setMounted] = useState(false)
+  const [notification, setNotification] = useState<{ open: boolean; severity: ModalSeverity; message: string }>({ open: false, severity: 'success', message: '' })
 
   useEffect(() => {
     setMounted(true)
@@ -87,15 +89,15 @@ export default function StudentClassClient({ student }: { student: Student }) {
       const data = await response.json()
 
       if (response.ok) {
-        setSuccess(`Successfully joined ${data.class.class_name}!`)
+        setNotification({ open: true, severity: 'success', message: `Successfully joined ${data.class.class_name}!` })
         setOpenJoinDialog(false)
         setClassCode('')
         fetchClasses()
       } else {
-        setError(data.error || 'Failed to join class')
+        setNotification({ open: true, severity: 'error', message: data.error || 'Failed to join class' })
       }
     } catch (_err) {
-      setError('An error occurred while joining the class')
+      setNotification({ open: true, severity: 'error', message: 'An error occurred while joining the class' })
     }
   }
 
@@ -235,6 +237,15 @@ export default function StudentClassClient({ student }: { student: Student }) {
           })}
         </Box>
       )}
+
+      {/* Notification Modal */}
+      <NotificationModal
+        open={notification.open}
+        onClose={() => setNotification({ ...notification, open: false })}
+        message={notification.message}
+        severity={notification.severity}
+        autoCloseMs={2500}
+      />
 
       {/* Join Class Dialog */}
       <Dialog 

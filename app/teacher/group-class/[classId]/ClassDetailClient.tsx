@@ -33,6 +33,8 @@ import {
 } from '@mui/material'
 import { ArrowLeft, Users, FileText, Plus, Trash2, Code } from 'lucide-react'
 import type { GroupClass, ClassStudent, ClassMaterial } from '@/lib/types'
+import NotificationModal, { type ModalSeverity } from '@/app/components/NotificationModal'
+import ConfirmationModal from '@/app/components/ConfirmationModal'
 
 interface Teacher {
   id: string
@@ -65,6 +67,8 @@ export default function ClassDetailClient({ classId, teacher }: { classId: strin
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [mounted, setMounted] = useState(false)
+  const [confirmModal, setConfirmModal] = useState<{ open: boolean; id: string; type: 'student' | 'material'; name: string }>({ open: false, id: '', type: 'student', name: '' })
+  const [notification, setNotification] = useState<{ open: boolean; severity: ModalSeverity; message: string }>({ open: false, severity: 'success', message: '' })
   
   const [openMaterialDialog, setOpenMaterialDialog] = useState(false)
   const [quizzes, setQuizzes] = useState<any[]>([])
@@ -186,46 +190,53 @@ export default function ClassDetailClient({ classId, teacher }: { classId: strin
     }
   }
 
-  const handleRemoveStudent = async (studentId: string) => {
-    if (!confirm('Remove this student from the class?')) return
-
-    try {
-      const response = await fetch(
-        `/api/teacher/classes/${classId}/students?studentId=${studentId}`,
-        { method: 'DELETE' }
-      )
-
-      if (response.ok) {
-        setSuccess('Student removed successfully')
-        fetchStudents()
-        fetchClassDetails()
-      } else {
-        const data = await response.json()
-        setError(data.error || 'Failed to remove student')
-      }
-    } catch (err) {
-      setError('An error occurred')
-    }
+  const handleRemoveStudentClick = (studentId: string, studentName: string) => {
+    setConfirmModal({ open: true, id: studentId, type: 'student', name: studentName })
   }
 
-  const handleRemoveMaterial = async (materialId: string) => {
-    if (!confirm('Remove this material from the class?')) return
+  const handleRemoveMaterialClick = (materialId: string, materialTitle: string) => {
+    setConfirmModal({ open: true, id: materialId, type: 'material', name: materialTitle })
+  }
 
-    try {
-      const response = await fetch(
-        `/api/teacher/classes/${classId}/materials?materialId=${materialId}`,
-        { method: 'DELETE' }
-      )
+  const handleConfirmRemove = async () => {
+    const { id, type } = confirmModal
+    setConfirmModal({ open: false, id: '', type: 'student', name: '' })
 
-      if (response.ok) {
-        setSuccess('Material removed successfully')
-        fetchMaterials()
-      } else {
-        const data = await response.json()
-        setError(data.error || 'Failed to remove material')
+    if (type === 'student') {
+      try {
+        const response = await fetch(
+          `/api/teacher/classes/${classId}/students?studentId=${id}`,
+          { method: 'DELETE' }
+        )
+
+        if (response.ok) {
+          setNotification({ open: true, severity: 'success', message: 'Student removed successfully!' })
+          fetchStudents()
+          fetchClassDetails()
+        } else {
+          const data = await response.json()
+          setNotification({ open: true, severity: 'error', message: data.error || 'Failed to remove student' })
+        }
+      } catch (err) {
+        setNotification({ open: true, severity: 'error', message: 'An error occurred' })
       }
-    } catch (err) {
-      setError('An error occurred')
+    } else {
+      try {
+        const response = await fetch(
+          `/api/teacher/classes/${classId}/materials?materialId=${id}`,
+          { method: 'DELETE' }
+        )
+
+        if (response.ok) {
+          setNotification({ open: true, severity: 'success', message: 'Material removed successfully!' })
+          fetchMaterials()
+        } else {
+          const data = await response.json()
+          setNotification({ open: true, severity: 'error', message: data.error || 'Failed to remove material' })
+        }
+      } catch (err) {
+        setNotification({ open: true, severity: 'error', message: 'An error occurred' })
+      }
     }
   }
 
@@ -341,7 +352,7 @@ export default function ClassDetailClient({ classId, teacher }: { classId: strin
                           <IconButton
                             size="small"
                             color="error"
-                            onClick={() => handleRemoveStudent(enrollment.student_id)}
+                            onClick={() => handleRemoveStudentClick(enrollment.student_id, enrollment.students?.student_name || 'this student')}
                             title="Remove Student"
                           >
                             <Trash2 size={18} />
@@ -418,7 +429,7 @@ export default function ClassDetailClient({ classId, teacher }: { classId: strin
                       <IconButton
                         size="small"
                         color="error"
-                        onClick={() => handleRemoveMaterial(material.id)}
+                        onClick={() => handleRemoveMaterialClick(material.id, material.title)}
                       >
                         <Trash2 size={18} />
                       </IconButton>
@@ -430,6 +441,28 @@ export default function ClassDetailClient({ classId, teacher }: { classId: strin
           </TableContainer>
         )}
       </TabPanel>
+
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+        open={confirmModal.open}
+        onClose={() => setConfirmModal({ open: false, id: '', type: 'student', name: '' })}
+        onConfirm={handleConfirmRemove}
+        title={confirmModal.type === 'student' ? 'Remove Student' : 'Remove Material'}
+        message={confirmModal.type === 'student'
+          ? `Are you sure you want to remove "${confirmModal.name}" from this class?`
+          : `Are you sure you want to remove "${confirmModal.name}" from this class?`}
+        confirmLabel="Remove"
+        variant="danger"
+      />
+
+      {/* Notification Modal */}
+      <NotificationModal
+        open={notification.open}
+        onClose={() => setNotification({ ...notification, open: false })}
+        message={notification.message}
+        severity={notification.severity}
+        autoCloseMs={2000}
+      />
 
       {/* Add Material Dialog */}
       <Dialog open={openMaterialDialog} onClose={() => setOpenMaterialDialog(false)} maxWidth="sm" fullWidth>

@@ -32,11 +32,11 @@ export async function POST(request: Request) {
 
     if (error) {
       console.error('Password update error:', error)
-      
+
       if (error.message?.includes('same_password')) {
         return NextResponse.json({ error: 'New password must be different from your current password.' }, { status: 400 })
       }
-      
+
       return NextResponse.json({ error: 'Failed to change password. Please try again.' }, { status: 500 })
     }
 

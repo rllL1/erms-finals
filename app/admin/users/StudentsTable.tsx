@@ -6,6 +6,9 @@ import { MoreVertical, Power, Trash2, Search } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import { useTheme } from '@mui/material/styles'
+import ConfirmationModal from '@/app/components/ConfirmationModal'
+import NotificationModal from '@/app/components/NotificationModal'
+import type { ModalSeverity } from '@/app/components/NotificationModal'
 
 interface Student {
   id: string
@@ -31,6 +34,8 @@ export default function StudentsTable({ students }: StudentsTableProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [actionMenu, setActionMenu] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState<string | null>(null)
+  const [confirmModal, setConfirmModal] = useState<{ open: boolean; userId: string; name: string }>({ open: false, userId: '', name: '' })
+  const [notification, setNotification] = useState<{ open: boolean; severity: ModalSeverity; message: string }>({ open: false, severity: 'success', message: '' })
 
   const filteredStudents = students.filter(
     (student) =>
@@ -53,16 +58,22 @@ export default function StudentsTable({ students }: StudentsTableProps) {
     }
   }
 
-  const handleDelete = async (userId: string) => {
-    if (!confirm('Are you sure you want to delete this student? This action cannot be undone.')) {
-      return
-    }
+  const handleDeleteClick = (userId: string, name: string) => {
+    setActionMenu(null)
+    setConfirmModal({ open: true, userId, name })
+  }
+
+  const handleDeleteConfirm = async () => {
+    const userId = confirmModal.userId
+    setConfirmModal({ open: false, userId: '', name: '' })
     setIsLoading(userId)
     try {
       await deleteUser(userId)
+      setNotification({ open: true, severity: 'success', message: 'Student deleted successfully.' })
       router.refresh()
     } catch (error) {
       console.error('Error deleting user:', error)
+      setNotification({ open: true, severity: 'error', message: 'Failed to delete student. Please try again.' })
     } finally {
       setIsLoading(null)
       setActionMenu(null)
@@ -147,7 +158,7 @@ export default function StudentsTable({ students }: StudentsTableProps) {
                     {student.profiles?.is_active ? 'Disable Account' : 'Enable Account'}
                   </button>
                   <button
-                    onClick={() => handleDelete(student.user_id)}
+                    onClick={() => handleDeleteClick(student.user_id, student.student_name)}
                     className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-50 dark:hover:bg-gray-700 rounded"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -229,7 +240,7 @@ export default function StudentsTable({ students }: StudentsTableProps) {
                         {student.profiles?.is_active ? 'Disable Account' : 'Enable Account'}
                       </button>
                       <button
-                        onClick={() => handleDelete(student.user_id)}
+                        onClick={() => handleDeleteClick(student.user_id, student.student_name)}
                         className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-50 dark:hover:bg-gray-700"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -250,6 +261,24 @@ export default function StudentsTable({ students }: StudentsTableProps) {
           No students match your search
         </p>
       )}
+
+      <ConfirmationModal
+        open={confirmModal.open}
+        onClose={() => setConfirmModal({ open: false, userId: '', name: '' })}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Student"
+        message={`Are you sure you want to delete "${confirmModal.name}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+      />
+
+      <NotificationModal
+        open={notification.open}
+        onClose={() => setNotification({ ...notification, open: false })}
+        severity={notification.severity}
+        message={notification.message}
+        autoCloseMs={2000}
+      />
     </div>
   )
 }

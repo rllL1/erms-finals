@@ -26,7 +26,7 @@ export async function sendWelcomeEmail({
   password,
   userType,
 }: WelcomeEmailParams): Promise<{ success: boolean; error?: string }> {
-  const loginUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://sdscerms.vercel.app/'
+  const loginUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://erms-finals.vercel.app/login'
 const logoUrl = `${loginUrl}/234.png`
 
   const htmlContent = `
@@ -166,7 +166,7 @@ export async function sendPasswordResetOTP({
   name,
   otpCode,
 }: PasswordResetOTPParams): Promise<{ success: boolean; error?: string }> {
-  const loginUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://sdscerms.vercel.app/'
+  const loginUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://erms-finals.vercel.app/login'
   const logoUrl = `${loginUrl}/234.png`
 
   const htmlContent = `
@@ -182,10 +182,9 @@ export async function sendPasswordResetOTP({
     <tr>
       <td align="center" style="padding: 40px 0;">
         <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-          <!-- Header with Logo -->
+          <!-- Header -->
           <tr>
             <td align="center" style="padding: 40px 40px 20px 40px; background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); border-radius: 12px 12px 0 0;">
-              <img src="${logoUrl}" alt="sdsc" style="width: 120px; height: auto; margin-bottom: 20px;">
               <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 600;">Password Reset Request</h1>
             </td>
           </tr>

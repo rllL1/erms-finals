@@ -22,6 +22,8 @@ import {
 } from '@mui/material'
 import { Plus, Users, Clock, Code, Trash2, Eye } from 'lucide-react'
 import type { GroupClass } from '@/lib/types'
+import NotificationModal, { type ModalSeverity } from '@/app/components/NotificationModal'
+import ConfirmationModal from '@/app/components/ConfirmationModal'
 
 interface Teacher {
   id: string
@@ -39,6 +41,8 @@ export default function GroupClassClient({ teacher }: { teacher: Teacher }) {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [mounted, setMounted] = useState(false)
+  const [confirmModal, setConfirmModal] = useState<{ open: boolean; classId: string; name: string }>({ open: false, classId: '', name: '' })
+  const [notification, setNotification] = useState<{ open: boolean; severity: ModalSeverity; message: string }>({ open: false, severity: 'success', message: '' })
   
   const [formData, setFormData] = useState({
     class_name: '',
@@ -112,8 +116,13 @@ export default function GroupClassClient({ teacher }: { teacher: Teacher }) {
     }
   }
 
-  const handleDeleteClass = async (classId: string) => {
-    if (!confirm('Are you sure you want to delete this class?')) return
+  const handleDeleteClick = (classId: string, name: string) => {
+    setConfirmModal({ open: true, classId, name })
+  }
+
+  const handleDeleteConfirm = async () => {
+    const { classId } = confirmModal
+    setConfirmModal({ open: false, classId: '', name: '' })
 
     try {
       const response = await fetch(`/api/teacher/classes/${classId}`, {
@@ -121,14 +130,14 @@ export default function GroupClassClient({ teacher }: { teacher: Teacher }) {
       })
 
       if (response.ok) {
-        setSuccess('Class deleted successfully')
+        setNotification({ open: true, severity: 'success', message: 'Class deleted successfully!' })
         fetchClasses()
       } else {
         const data = await response.json()
-        setError(data.error || 'Failed to delete class')
+        setNotification({ open: true, severity: 'error', message: data.error || 'Failed to delete class' })
       }
     } catch (_err) {
-      setError('An error occurred while deleting the class')
+      setNotification({ open: true, severity: 'error', message: 'An error occurred while deleting the class' })
     }
   }
 
@@ -222,7 +231,7 @@ export default function GroupClassClient({ teacher }: { teacher: Teacher }) {
                       </IconButton>
                       <IconButton
                         size="small"
-                        onClick={() => handleDeleteClass(cls.id)}
+                        onClick={() => handleDeleteClick(cls.id, cls.class_name)}
                         sx={{ color: 'error.main' }}
                       >
                         <Trash2 size={20} />
@@ -261,6 +270,26 @@ export default function GroupClassClient({ teacher }: { teacher: Teacher }) {
           ))}
         </Box>
       )}
+
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+        open={confirmModal.open}
+        onClose={() => setConfirmModal({ open: false, classId: '', name: '' })}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Class"
+        message={`Are you sure you want to delete "${confirmModal.name}"? This will remove all students and materials from the class. This action cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+      />
+
+      {/* Notification Modal */}
+      <NotificationModal
+        open={notification.open}
+        onClose={() => setNotification({ ...notification, open: false })}
+        message={notification.message}
+        severity={notification.severity}
+        autoCloseMs={2000}
+      />
 
       {/* Create Class Dialog */}
       <Dialog 

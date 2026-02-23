@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Box,
@@ -17,10 +17,12 @@ import {
   Checkbox,
   FormControlLabel,
   CircularProgress,
-  Snackbar,
 } from '@mui/material'
 import { ArrowLeft, Delete, Upload, Sparkles, Printer, Image as ImageIcon, X } from 'lucide-react'
 import { generateExamPDF } from '../utils/pdfGenerator'
+import NotificationModal, { type ModalSeverity } from '../components/NotificationModal'
+import ConfirmationModal from '@/app/components/ConfirmationModal'
+import { isDuplicateQuestion } from '../utils/duplicateDetection'
 
 type ExamType = 'enumeration' | 'multiple-choice' | 'identification' | 'true-false' | 'essay' | 'math'
 type ExamPeriod = 'prelim' | 'midterm' | 'finals'
@@ -76,12 +78,30 @@ export default function CreateExamClient({ teacher }: { teacher: Teacher }) {
     'math': 5,
   })
   
-  // Snackbar state
-  const [snackbar, setSnackbar] = useState<{
+  // Notification modal state
+  const [modal, setModal] = useState<{
     open: boolean
+    title?: string
     message: string
-    severity: 'success' | 'error' | 'warning' | 'info'
+    severity: ModalSeverity
+    autoCloseMs?: number
+    actionLabel?: string
+    onAction?: () => void
   }>({ open: false, message: '', severity: 'info' })
+
+  // Duplicate warning per question (real-time)
+  const [duplicateWarnings, setDuplicateWarnings] = useState<Record<string, boolean>>({})
+
+  // Delete question confirmation
+  const [questionToDelete, setQuestionToDelete] = useState<string | null>(null)
+
+  const showModal = useCallback((severity: ModalSeverity, message: string, opts?: { title?: string; autoCloseMs?: number; actionLabel?: string; onAction?: () => void }) => {
+    setModal({ open: true, message, severity, ...opts })
+  }, [])
+
+  const closeModal = useCallback(() => {
+    setModal(prev => ({ ...prev, open: false }))
+  }, [])
 
   const handleAddQuestion = (type: ExamType) => {
     const newQuestion: ExamQuestion = {
@@ -101,14 +121,14 @@ export default function CreateExamClient({ teacher }: { teacher: Teacher }) {
     // Validate file type
     const validTypes = ['image/jpeg', 'image/png', 'image/jpg']
     if (!validTypes.includes(file.type)) {
-      setSnackbar({ open: true, message: 'Invalid file type. Only JPG and PNG are allowed.', severity: 'error' })
+      showModal('error', 'Invalid file type. Only JPG and PNG are allowed.')
       return
     }
 
     // Validate file size (max 5MB)
     const maxSize = 5 * 1024 * 1024
     if (file.size > maxSize) {
-      setSnackbar({ open: true, message: 'File too large. Maximum size is 5MB.', severity: 'error' })
+      showModal('error', 'File too large. Maximum size is 5MB.')
       return
     }
 
@@ -133,7 +153,7 @@ export default function CreateExamClient({ teacher }: { teacher: Teacher }) {
         setQuestions(questions.map(q => 
           q.id === questionId ? { ...q, imageUrl: data.imageUrl, imageFile: file, imageUploading: false } : q
         ))
-        setSnackbar({ open: true, message: 'Image uploaded successfully', severity: 'success' })
+        showModal('success', 'Image uploaded successfully.', { autoCloseMs: 2000 })
       } else {
         throw new Error(data.error || 'Failed to upload image')
       }
@@ -142,7 +162,7 @@ export default function CreateExamClient({ teacher }: { teacher: Teacher }) {
       setQuestions(questions.map(q => 
         q.id === questionId ? { ...q, imageUploading: false } : q
       ))
-      setSnackbar({ open: true, message: `Failed to upload image: ${error instanceof Error ? error.message : 'Unknown error'}`, severity: 'error' })
+      showModal('error', `Failed to upload image: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 
@@ -153,13 +173,35 @@ export default function CreateExamClient({ teacher }: { teacher: Teacher }) {
   }
 
   const handleDeleteQuestion = (id: string) => {
-    setQuestions(questions.filter(q => q.id !== id))
+    setQuestionToDelete(id)
+  }
+
+  const handleDeleteQuestionConfirm = () => {
+    if (!questionToDelete) return
+    setQuestions(questions.filter(q => q.id !== questionToDelete))
+    setDuplicateWarnings(prev => {
+      const next = { ...prev }
+      delete next[questionToDelete]
+      return next
+    })
+    setQuestionToDelete(null)
   }
 
   const handleQuestionChange = (id: string, field: string, value: string | number) => {
-    setQuestions(questions.map(q => 
-      q.id === id ? { ...q, [field]: value } : q
-    ))
+    setQuestions(prev => {
+      const updated = prev.map(q =>
+        q.id === id ? { ...q, [field]: value } : q
+      )
+
+      // Real-time duplicate detection when question text changes
+      if (field === 'question' && typeof value === 'string') {
+        const questionIndex = updated.findIndex(q => q.id === id)
+        const hasDuplicate = isDuplicateQuestion(value, updated, questionIndex)
+        setDuplicateWarnings(prevW => ({ ...prevW, [id]: hasDuplicate }))
+      }
+
+      return updated
+    })
   }
 
   const handleOptionChange = (questionId: string, optionIndex: number, value: string) => {
@@ -189,12 +231,12 @@ export default function CreateExamClient({ teacher }: { teacher: Teacher }) {
 
   const handleGenerateAI = async () => {
     if (!uploadedFile && !aiPrompt) {
-      alert('Please upload a file or provide a prompt')
+      showModal('warning', 'Please upload a file or provide a prompt.')
       return
     }
 
     if (selectedExamTypes.length === 0) {
-      alert('Please select at least one exam type')
+      showModal('warning', 'Please select at least one exam type.')
       return
     }
 
@@ -225,10 +267,11 @@ export default function CreateExamClient({ teacher }: { teacher: Teacher }) {
       const data = await response.json()
       setQuestions(data.questions)
       setCreationMethod('manual')
+      showModal('success', `Generated ${data.questions.length} exam questions successfully!`, { autoCloseMs: 3000 })
     } catch (error) {
       console.error('Error generating exam:', error)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      alert(`Failed to generate exam with AI: ${errorMessage}`)
+      showModal('error', `Failed to generate exam with AI: ${errorMessage}`)
     } finally {
       setLoading(false)
     }
@@ -236,8 +279,18 @@ export default function CreateExamClient({ teacher }: { teacher: Teacher }) {
 
   const handleSaveExam = async () => {
     if (!examTitle || questions.length === 0) {
-      alert('Please provide a title and at least one question')
+      showModal('warning', 'Please provide a title and at least one question.')
       return
+    }
+
+    // Check for duplicate questions before saving
+    for (let i = 0; i < questions.length; i++) {
+      if (isDuplicateQuestion(questions[i].question, questions, i)) {
+        showModal('duplicate', 'This question already exists. Duplicate questions are not allowed.', {
+          title: 'Duplicate Detected',
+        })
+        return
+      }
     }
 
     setLoading(true)
@@ -273,10 +326,14 @@ export default function CreateExamClient({ teacher }: { teacher: Teacher }) {
         questions,
       }
       setSavedExam(examData)
-      alert('Exam created successfully! You can now print or preview the exam.')
+      showModal('success', 'Your exam questions were created successfully.', {
+        title: 'Exam Created Successfully!',
+        actionLabel: 'OK',
+        autoCloseMs: 5000,
+      })
     } catch (error) {
       console.error('Error creating exam:', error)
-      alert(`Failed to create exam: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      showModal('error', `Failed to create exam: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setLoading(false)
     }
@@ -683,8 +740,15 @@ export default function CreateExamClient({ teacher }: { teacher: Teacher }) {
                   label="Question"
                   value={question.question}
                   onChange={(e) => handleQuestionChange(question.id, 'question', e.target.value)}
-                  sx={{ mb: 2 }}
+                  sx={{ mb: duplicateWarnings[question.id] ? 0 : 2 }}
+                  error={duplicateWarnings[question.id]}
+                  helperText={duplicateWarnings[question.id] ? 'Duplicate question detected — this question already exists.' : ''}
                 />
+                {duplicateWarnings[question.id] && (
+                  <Alert severity="error" sx={{ mb: 2, mt: 0.5 }}>
+                    This question already exists. Duplicate questions are not allowed.
+                  </Alert>
+                )}
 
                 {question.type === 'math' && (
                   <TextField
@@ -728,10 +792,10 @@ export default function CreateExamClient({ teacher }: { teacher: Teacher }) {
           <Button
             variant="contained"
             onClick={handleSaveExam}
-            disabled={loading || !examTitle || questions.length === 0}
+            disabled={loading || !examTitle || questions.length === 0 || Object.values(duplicateWarnings).some(Boolean)}
             fullWidth
           >
-            Save Exam
+            {loading ? <CircularProgress size={24} sx={{ color: 'white' }} /> : 'Save Exam'}
           </Button>
         </Box>
 
@@ -763,22 +827,34 @@ export default function CreateExamClient({ teacher }: { teacher: Teacher }) {
         )}
       </Card>
 
-      {/* Snackbar for notifications */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={6000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-      >
-        <Alert
-          onClose={() => setSnackbar({ ...snackbar, open: false })}
-          severity={snackbar.severity}
-          variant="filled"
-          sx={{ width: '100%' }}
-        >
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
+      {/* Notification Modal */}
+      {/* Notification Modal */}
+      <NotificationModal
+        open={modal.open}
+        onClose={() => {
+          if (modal.onAction) {
+            modal.onAction()
+          } else {
+            closeModal()
+          }
+        }}
+        title={modal.title}
+        message={modal.message}
+        severity={modal.severity}
+        autoCloseMs={modal.autoCloseMs}
+        actionLabel={modal.actionLabel}
+        onAction={modal.onAction}
+      />
+      {/* Delete Question Confirmation */}
+      <ConfirmationModal
+        open={!!questionToDelete}
+        onClose={() => setQuestionToDelete(null)}
+        onConfirm={handleDeleteQuestionConfirm}
+        title="Delete Question"
+        message="Are you sure you want to delete this question? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+      />
     </Box>
   )
 }

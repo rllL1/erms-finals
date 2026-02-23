@@ -23,6 +23,8 @@ import {
   Alert,
 } from '@mui/material'
 import { Plus, Eye, Edit, Trash2, Users, X, Calendar, FileText } from 'lucide-react'
+import NotificationModal, { type ModalSeverity } from '@/app/components/NotificationModal'
+import ConfirmationModal from '@/app/components/ConfirmationModal'
 
 interface Assignment {
   id: string
@@ -49,6 +51,7 @@ export default function AssignmentTab({ teacherId }: { teacherId: string }) {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null)
   const [assignmentToDelete, setAssignmentToDelete] = useState<string | null>(null)
+  const [notification, setNotification] = useState<{ open: boolean; severity: ModalSeverity; message: string }>({ open: false, severity: 'success', message: '' })
 
   useEffect(() => {
     fetchAssignments()
@@ -87,9 +90,15 @@ export default function AssignmentTab({ teacherId }: { teacherId: string }) {
         setAssignments(assignments.filter(a => a.id !== assignmentId))
         setDeleteModalOpen(false)
         setAssignmentToDelete(null)
+        setNotification({ open: true, severity: 'success', message: 'Assignment deleted successfully!' })
+      } else {
+        setDeleteModalOpen(false)
+        setNotification({ open: true, severity: 'error', message: 'Failed to delete assignment. Please try again.' })
       }
     } catch (error) {
       console.error('Error deleting assignment:', error)
+      setDeleteModalOpen(false)
+      setNotification({ open: true, severity: 'error', message: 'An error occurred while deleting the assignment.' })
     }
   }
 
@@ -361,29 +370,26 @@ export default function AssignmentTab({ teacherId }: { teacherId: string }) {
       </Dialog>
 
       {/* Delete Confirmation Modal */}
-      <Dialog 
-        open={deleteModalOpen} 
+      <ConfirmationModal
+        open={deleteModalOpen}
         onClose={() => setDeleteModalOpen(false)}
-        maxWidth="xs"
-      >
-        <DialogTitle>Confirm Delete</DialogTitle>
-        <DialogContent>
-          <Typography>
-            Are you sure you want to delete this assignment? This action cannot be undone.
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteModalOpen(false)}>Cancel</Button>
-          <Button 
-            onClick={() => assignmentToDelete && handleDelete(assignmentToDelete)} 
-            color="error"
-            variant="contained"
-          >
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
+        onConfirm={() => assignmentToDelete && handleDelete(assignmentToDelete)}
+        title="Delete Assignment"
+        message="Are you sure you want to delete this assignment? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+      />
+
+      {/* Notification Modal */}
+      <NotificationModal
+        open={notification.open}
+        onClose={() => setNotification({ ...notification, open: false })}
+        message={notification.message}
+        severity={notification.severity}
+        autoCloseMs={2000}
+      />
     </Box>
   )
 }
+
 

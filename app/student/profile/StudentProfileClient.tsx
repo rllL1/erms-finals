@@ -8,6 +8,7 @@ import Button from '@mui/material/Button'
 import Alert from '@mui/material/Alert'
 import CircularProgress from '@mui/material/CircularProgress'
 import { User, Lock } from 'lucide-react'
+import NotificationModal from '@/app/components/NotificationModal'
 
 interface StudentProfileClientProps {
   student: {
@@ -25,30 +26,74 @@ export default function StudentProfileClient({ student }: StudentProfileClientPr
   const [success, setSuccess] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'profile' | 'password'>('profile')
 
+  // Field-level validation errors
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+
+  // Notification modal for success messages
+  const [snackbarOpen, setSnackbarOpen] = useState(false)
+
+  function validateEmail(email: string): boolean {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+  }
+
+  function validateProfileFields(name: string, email: string, course: string): boolean {
+    const errors: Record<string, string> = {}
+
+    if (!name.trim()) {
+      errors.studentName = 'Full name is required.'
+    }
+    if (!email.trim()) {
+      errors.email = 'Email address is required.'
+    } else if (!validateEmail(email.trim())) {
+      errors.email = 'Please enter a valid email address.'
+    }
+    if (!course.trim()) {
+      errors.course = 'Course is required.'
+    }
+
+    setFieldErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
   async function handleProfileUpdate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setIsLoading(true)
     setError(null)
     setSuccess(null)
 
     const formData = new FormData(event.currentTarget)
+    const studentName = (formData.get('studentName') as string) || ''
+    const email = (formData.get('email') as string) || ''
+    const course = (formData.get('course') as string) || ''
+
+    if (!validateProfileFields(studentName, email, course)) {
+      return
+    }
+
+    setIsLoading(true)
 
     try {
       const response = await fetch('/api/student/update-profile', {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentName: studentName.trim(),
+          email: email.trim(),
+          course: course.trim(),
+        }),
       })
 
       const result = await response.json()
 
-      if (result.error) {
-        setError(result.error)
+      if (!response.ok || result.error) {
+        setError(result.error || 'Failed to update profile. Please try again.')
       } else {
-        setSuccess('Profile updated successfully!')
+        setSuccess(result.message || 'Profile updated successfully!')
+        setSnackbarOpen(true)
+        setFieldErrors({})
         router.refresh()
       }
     } catch {
-      setError('An unexpected error occurred')
+      setError('Unable to connect to the server. Please check your connection and try again.')
     } finally {
       setIsLoading(false)
     }
@@ -56,7 +101,6 @@ export default function StudentProfileClient({ student }: StudentProfileClientPr
 
   async function handlePasswordChange(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setIsLoading(true)
     setError(null)
     setSuccess(null)
 
@@ -64,17 +108,28 @@ export default function StudentProfileClient({ student }: StudentProfileClientPr
     const newPassword = formData.get('newPassword') as string
     const confirmPassword = formData.get('confirmPassword') as string
 
-    if (newPassword !== confirmPassword) {
-      setError('Passwords do not match')
-      setIsLoading(false)
+    const errors: Record<string, string> = {}
+
+    if (!newPassword) {
+      errors.newPassword = 'New password is required.'
+    } else if (newPassword.length < 6) {
+      errors.newPassword = 'Password must be at least 6 characters long.'
+    } else if (/^(.)\1+$/.test(newPassword)) {
+      errors.newPassword = 'Password is too weak. Please use a mix of characters.'
+    }
+
+    if (!confirmPassword) {
+      errors.confirmPassword = 'Please confirm your new password.'
+    } else if (newPassword !== confirmPassword) {
+      errors.confirmPassword = 'Passwords do not match.'
+    }
+
+    setFieldErrors(errors)
+    if (Object.keys(errors).length > 0) {
       return
     }
 
-    if (newPassword.length < 6) {
-      setError('Password must be at least 6 characters')
-      setIsLoading(false)
-      return
-    }
+    setIsLoading(true)
 
     try {
       const response = await fetch('/api/student/change-password', {
@@ -85,17 +140,27 @@ export default function StudentProfileClient({ student }: StudentProfileClientPr
 
       const result = await response.json()
 
-      if (result.error) {
-        setError(result.error)
+      if (!response.ok || result.error) {
+        setError(result.error || 'Failed to change password. Please try again.')
       } else {
-        setSuccess('Password changed successfully!')
-        event.currentTarget.reset()
+        setSuccess(result.message || 'Password changed successfully!')
+        setSnackbarOpen(true)
+        setFieldErrors({})
+        ;(event.target as HTMLFormElement).reset()
       }
     } catch {
-      setError('An unexpected error occurred')
+      setError('Unable to connect to the server. Please check your connection and try again.')
     } finally {
       setIsLoading(false)
     }
+  }
+
+  function clearFieldError(field: string) {
+    setFieldErrors(prev => {
+      const next = { ...prev }
+      delete next[field]
+      return next
+    })
   }
 
   return (
@@ -167,6 +232,9 @@ export default function StudentProfileClient({ student }: StudentProfileClientPr
                 variant="outlined"
                 disabled={isLoading}
                 defaultValue={student.student_name}
+                error={!!fieldErrors.studentName}
+                helperText={fieldErrors.studentName}
+                onChange={() => clearFieldError('studentName')}
               />
 
               <TextField
@@ -191,6 +259,9 @@ export default function StudentProfileClient({ student }: StudentProfileClientPr
                 variant="outlined"
                 disabled={isLoading}
                 defaultValue={student.email}
+                error={!!fieldErrors.email}
+                helperText={fieldErrors.email}
+                onChange={() => clearFieldError('email')}
               />
 
               <TextField
@@ -202,6 +273,9 @@ export default function StudentProfileClient({ student }: StudentProfileClientPr
                 variant="outlined"
                 disabled={isLoading}
                 defaultValue={student.course}
+                error={!!fieldErrors.course}
+                helperText={fieldErrors.course}
+                onChange={() => clearFieldError('course')}
               />
 
               <div className="flex gap-3 mt-6">
@@ -242,7 +316,9 @@ export default function StudentProfileClient({ student }: StudentProfileClientPr
                 type="password"
                 variant="outlined"
                 disabled={isLoading}
-                helperText="Minimum 6 characters"
+                helperText={fieldErrors.newPassword || 'Minimum 6 characters'}
+                error={!!fieldErrors.newPassword}
+                onChange={() => clearFieldError('newPassword')}
               />
 
               <TextField
@@ -254,6 +330,9 @@ export default function StudentProfileClient({ student }: StudentProfileClientPr
                 type="password"
                 variant="outlined"
                 disabled={isLoading}
+                error={!!fieldErrors.confirmPassword}
+                helperText={fieldErrors.confirmPassword}
+                onChange={() => clearFieldError('confirmPassword')}
               />
 
               <div className="flex gap-3 mt-6">
@@ -277,6 +356,15 @@ export default function StudentProfileClient({ student }: StudentProfileClientPr
           )}
         </div>
       </div>
+
+      {/* Success Notification Modal */}
+      <NotificationModal
+        open={snackbarOpen}
+        onClose={() => setSnackbarOpen(false)}
+        message={success || 'Operation completed successfully!'}
+        severity="success"
+        autoCloseMs={2500}
+      />
     </div>
   )
 }

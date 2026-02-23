@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Box,
@@ -10,14 +10,15 @@ import {
   TextField,
   MenuItem,
   Alert,
-  Snackbar,
   Chip,
   FormControl,
   InputLabel,
   Select,
   OutlinedInput,
+  CircularProgress,
 } from '@mui/material'
 import { ArrowLeft, Save } from 'lucide-react'
+import NotificationModal, { type ModalSeverity } from '../../components/NotificationModal'
 
 interface Assignment {
   id: string
@@ -55,7 +56,25 @@ export default function EditAssignmentClient({ assignment: initialAssignment }: 
   const router = useRouter()
   const [assignment, setAssignment] = useState(initialAssignment)
   const [saving, setSaving] = useState(false)
-  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+
+  // Notification modal state
+  const [modal, setModal] = useState<{
+    open: boolean
+    title?: string
+    message: string
+    severity: ModalSeverity
+    autoCloseMs?: number
+    actionLabel?: string
+    onAction?: () => void
+  }>({ open: false, message: '', severity: 'info' })
+
+  const showModal = useCallback((severity: ModalSeverity, message: string, opts?: { title?: string; autoCloseMs?: number; actionLabel?: string; onAction?: () => void }) => {
+    setModal({ open: true, message, severity, ...opts })
+  }, [])
+
+  const closeModal = useCallback(() => {
+    setModal(prev => ({ ...prev, open: false }))
+  }, [])
 
   const handleSave = async () => {
     setSaving(true)
@@ -76,12 +95,17 @@ export default function EditAssignmentClient({ assignment: initialAssignment }: 
 
       if (!response.ok) throw new Error('Failed to update assignment')
 
-      setMessage({ type: 'success', text: 'Assignment updated successfully!' })
-      setTimeout(() => {
-        router.push('/teacher/quiz')
-      }, 1500)
+      showModal('success', 'Assignment updated successfully!', {
+        title: 'Assignment Updated!',
+        actionLabel: 'Go to Quizzes',
+        onAction: () => {
+          closeModal()
+          router.push('/teacher/quiz')
+        },
+        autoCloseMs: 3000,
+      })
     } catch (error) {
-      setMessage({ type: 'error', text: 'Failed to save assignment. Please try again.' })
+      showModal('error', 'Failed to save assignment. Please try again.')
     } finally {
       setSaving(false)
     }
@@ -103,7 +127,7 @@ export default function EditAssignmentClient({ assignment: initialAssignment }: 
           Cancel
         </Button>
         <Button
-          startIcon={<Save />}
+          startIcon={saving ? <CircularProgress size={20} sx={{ color: 'white' }} /> : <Save />}
           onClick={handleSave}
           variant="contained"
           disabled={saving}
@@ -213,15 +237,22 @@ export default function EditAssignmentClient({ assignment: initialAssignment }: 
         </Alert>
       </Paper>
 
-      <Snackbar
-        open={!!message}
-        autoHideDuration={6000}
-        onClose={() => setMessage(null)}
-      >
-        <Alert severity={message?.type} onClose={() => setMessage(null)}>
-          {message?.text}
-        </Alert>
-      </Snackbar>
+      <NotificationModal
+        open={modal.open}
+        onClose={() => {
+          if (modal.onAction) {
+            modal.onAction()
+          } else {
+            closeModal()
+          }
+        }}
+        title={modal.title}
+        message={modal.message}
+        severity={modal.severity}
+        autoCloseMs={modal.autoCloseMs}
+        actionLabel={modal.actionLabel}
+        onAction={modal.onAction}
+      />
     </Box>
   )
 }

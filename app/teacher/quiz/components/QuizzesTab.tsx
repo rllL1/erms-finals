@@ -26,6 +26,8 @@ import {
   Radio,
 } from '@mui/material'
 import { Plus, Eye, Edit, Trash2, X } from 'lucide-react'
+import NotificationModal, { type ModalSeverity } from '@/app/components/NotificationModal'
+import ConfirmationModal from '@/app/components/ConfirmationModal'
 
 interface Quiz {
   id: string
@@ -64,6 +66,7 @@ export default function QuizzesTab({ teacherId }: { teacherId: string }) {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [selectedQuiz, setSelectedQuiz] = useState<QuizDetails | null>(null)
   const [quizToDelete, setQuizToDelete] = useState<string | null>(null)
+  const [notification, setNotification] = useState<{ open: boolean; severity: ModalSeverity; message: string }>({ open: false, severity: 'success', message: '' })
 
   useEffect(() => {
     fetchQuizzes()
@@ -102,9 +105,15 @@ export default function QuizzesTab({ teacherId }: { teacherId: string }) {
         setQuizzes(quizzes.filter(q => q.id !== quizId))
         setDeleteModalOpen(false)
         setQuizToDelete(null)
+        setNotification({ open: true, severity: 'success', message: 'Quiz deleted successfully!' })
+      } else {
+        setDeleteModalOpen(false)
+        setNotification({ open: true, severity: 'error', message: 'Failed to delete quiz. Please try again.' })
       }
     } catch (error) {
       console.error('Error deleting quiz:', error)
+      setDeleteModalOpen(false)
+      setNotification({ open: true, severity: 'error', message: 'An error occurred while deleting the quiz.' })
     }
   }
 
@@ -422,28 +431,24 @@ export default function QuizzesTab({ teacherId }: { teacherId: string }) {
       </Dialog>
 
       {/* Delete Confirmation Modal */}
-      <Dialog 
-        open={deleteModalOpen} 
+      <ConfirmationModal
+        open={deleteModalOpen}
         onClose={() => setDeleteModalOpen(false)}
-        maxWidth="xs"
-      >
-        <DialogTitle>Confirm Delete</DialogTitle>
-        <DialogContent>
-          <Typography>
-            Are you sure you want to delete this quiz? This action cannot be undone.
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteModalOpen(false)}>Cancel</Button>
-          <Button 
-            onClick={() => quizToDelete && handleDelete(quizToDelete)} 
-            color="error"
-            variant="contained"
-          >
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
+        onConfirm={() => quizToDelete && handleDelete(quizToDelete)}
+        title="Delete Quiz"
+        message="Are you sure you want to delete this quiz? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+      />
+
+      {/* Notification Modal */}
+      <NotificationModal
+        open={notification.open}
+        onClose={() => setNotification({ ...notification, open: false })}
+        message={notification.message}
+        severity={notification.severity}
+        autoCloseMs={2000}
+      />
     </Box>
   )
 }

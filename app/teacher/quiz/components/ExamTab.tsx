@@ -25,6 +25,8 @@ import {
 } from '@mui/material'
 import { Plus, Eye, Edit, Trash2, Download, Printer, X } from 'lucide-react'
 import { generateExamPDF } from '../utils/pdfGenerator'
+import NotificationModal, { type ModalSeverity } from '@/app/components/NotificationModal'
+import ConfirmationModal from '@/app/components/ConfirmationModal'
 
 interface Exam {
   id: string
@@ -65,6 +67,7 @@ export default function ExamTab({ teacherId }: { teacherId: string }) {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [selectedExam, setSelectedExam] = useState<ExamDetails | null>(null)
   const [examToDelete, setExamToDelete] = useState<string | null>(null)
+  const [notification, setNotification] = useState<{ open: boolean; severity: ModalSeverity; message: string }>({ open: false, severity: 'success', message: '' })
 
   useEffect(() => {
     fetchExams()
@@ -103,9 +106,15 @@ export default function ExamTab({ teacherId }: { teacherId: string }) {
         setExams(exams.filter(e => e.id !== examId))
         setDeleteModalOpen(false)
         setExamToDelete(null)
+        setNotification({ open: true, severity: 'success', message: 'Exam deleted successfully!' })
+      } else {
+        setDeleteModalOpen(false)
+        setNotification({ open: true, severity: 'error', message: 'Failed to delete exam. Please try again.' })
       }
     } catch (error) {
       console.error('Error deleting exam:', error)
+      setDeleteModalOpen(false)
+      setNotification({ open: true, severity: 'error', message: 'An error occurred while deleting the exam.' })
     }
   }
 
@@ -450,28 +459,24 @@ export default function ExamTab({ teacherId }: { teacherId: string }) {
       </Dialog>
 
       {/* Delete Confirmation Modal */}
-      <Dialog 
-        open={deleteModalOpen} 
+      <ConfirmationModal
+        open={deleteModalOpen}
         onClose={() => setDeleteModalOpen(false)}
-        maxWidth="xs"
-      >
-        <DialogTitle>Confirm Delete</DialogTitle>
-        <DialogContent>
-          <Typography>
-            Are you sure you want to delete this exam? This action cannot be undone.
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteModalOpen(false)}>Cancel</Button>
-          <Button 
-            onClick={() => examToDelete && handleDelete(examToDelete)} 
-            color="error"
-            variant="contained"
-          >
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
+        onConfirm={() => examToDelete && handleDelete(examToDelete)}
+        title="Delete Exam"
+        message="Are you sure you want to delete this exam? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+      />
+
+      {/* Notification Modal */}
+      <NotificationModal
+        open={notification.open}
+        onClose={() => setNotification({ ...notification, open: false })}
+        message={notification.message}
+        severity={notification.severity}
+        autoCloseMs={2000}
+      />
     </Box>
   )
 }

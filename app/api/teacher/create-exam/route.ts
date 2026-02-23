@@ -6,6 +6,7 @@ interface ExamQuestion {
   question: string
   options?: string[]
   correctAnswer?: string
+  correct_answer?: string
   points?: number
   imageUrl?: string
 }
@@ -65,17 +66,30 @@ export async function POST(request: Request) {
 
     console.log('Exam created:', exam.id)
 
+    // Map question types to DB-allowed values
+    // DB constraint allows: 'multiple-choice', 'true-false', 'identification', 'essay'
+    // We also support: 'enumeration' (maps to 'identification'), 'math' (maps to 'identification')
+    const allowedTypes = ['multiple-choice', 'true-false', 'identification', 'essay']
+    const typeMapping: Record<string, string> = {
+      'enumeration': 'identification',
+      'math': 'identification',
+    }
+
     // Insert questions
-    const questionsToInsert = questions.map((q: ExamQuestion, index: number) => ({
-      quiz_id: exam.id,
-      question_type: q.type,
-      question: q.question,
-      options: q.options ? JSON.stringify(q.options) : null,
-      correct_answer: q.correctAnswer || '',
-      order_number: index + 1,
-      points: q.points || 1,
-      image_url: q.imageUrl || null,
-    }))
+    const questionsToInsert = questions.map((q: ExamQuestion, index: number) => {
+      const rawType = q.type || 'identification'
+      const questionType = allowedTypes.includes(rawType) ? rawType : (typeMapping[rawType] || 'identification')
+      return {
+        quiz_id: exam.id,
+        question_type: questionType,
+        question: q.question,
+        options: q.options ? JSON.stringify(q.options) : null,
+        correct_answer: q.correct_answer || q.correctAnswer || '',
+        order_number: index + 1,
+        points: q.points || 1,
+        image_url: q.imageUrl || null,
+      }
+    })
 
     const { error: questionsError } = await supabase
       .from('quiz_questions')

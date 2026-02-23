@@ -39,13 +39,25 @@ export async function login(formData: FormData) {
   const password = formData.get('password') as string
 
   // Validate input
-  if (!email || !password) {
-    return { error: 'Email and password are required' }
+  if (!email && !password) {
+    return { error: 'All fields are required.' }
+  }
+  if (!email) {
+    return { error: 'Email address is required.' }
+  }
+  if (!password) {
+    return { error: 'Password is required.' }
+  }
+
+  // Validate email format
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!emailRegex.test(email.trim())) {
+    return { error: 'Email format is invalid.' }
   }
 
   // Attempt to sign in
   const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-    email,
+    email: email.trim(),
     password,
   })
 
@@ -55,7 +67,7 @@ export async function login(formData: FormData) {
     const { data: existingUser } = await supabaseAdmin
       .from('profiles')
       .select('id, email, role')
-      .eq('email', email)
+      .eq('email', email.trim())
       .single()
 
     if (existingUser) {
@@ -69,19 +81,21 @@ export async function login(formData: FormData) {
         'failure',
         authError.message
       )
+      // User exists but password is wrong
+      return { error: 'Incorrect password.' }
     }
 
     if (authError.message.includes('Invalid login credentials')) {
-      return { error: 'Invalid email or password' }
+      return { error: 'Account not found.' }
     }
     if (authError.message.includes('Email not confirmed')) {
-      return { error: 'Please verify your email address' }
+      return { error: 'Please verify your email address before logging in.' }
     }
-    return { error: authError.message }
+    return { error: 'Invalid email or password.' }
   }
 
   if (!authData.user) {
-    return { error: 'Account not found' }
+    return { error: 'Account not found.' }
   }
 
   // Fetch user profile to get role
@@ -93,7 +107,7 @@ export async function login(formData: FormData) {
 
   if (profileError || !profile) {
     await supabase.auth.signOut()
-    return { error: 'Role not assigned. Please contact administrator.' }
+    return { error: 'Role not assigned. Please contact your administrator.' }
   }
 
   if (!profile.is_active) {
@@ -108,7 +122,7 @@ export async function login(formData: FormData) {
       'Account is disabled'
     )
     await supabase.auth.signOut()
-    return { error: 'Account is disabled. Please contact administrator.' }
+    return { error: 'Your account is disabled. Please contact your administrator.' }
   }
 
   // Log successful login
@@ -122,10 +136,10 @@ export async function login(formData: FormData) {
     `Role: ${profile.role}`
   )
 
-  // Redirect based on role
+  // Return success with role for client-side redirect (after showing success modal)
   const role = profile.role
   revalidatePath('/', 'layout')
-  redirect(`/${role}/dashboard`)
+  return { success: true, role }
 }
 
 export async function logout() {
