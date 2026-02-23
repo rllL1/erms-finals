@@ -58,6 +58,7 @@ export interface ClassStudent {
   id: string
   class_id: string
   student_id: string
+  status: 'pending' | 'approved' | 'denied'
   joined_at: string
   students?: Student
   group_classes?: GroupClass
@@ -93,6 +94,7 @@ export interface StudentSubmission {
   submitted_at: string
   graded_at?: string
   graded_by?: string
+  feedback?: string
   student?: Student
 }
 

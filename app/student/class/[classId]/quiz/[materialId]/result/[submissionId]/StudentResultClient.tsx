@@ -14,7 +14,7 @@ import {
   Paper,
   Divider,
 } from '@mui/material'
-import { ArrowLeft, CheckCircle, XCircle } from 'lucide-react'
+import { ArrowLeft, CheckCircle, XCircle, MessageSquare } from 'lucide-react'
 
 interface Student {
   id: string
@@ -44,6 +44,7 @@ interface Submission {
     answers: QuestionAnswer[]
   }
   assignment_response?: string
+  feedback?: string | null
 }
 
 interface Material {
@@ -187,6 +188,25 @@ export default function StudentResultClient({
           )}
         </CardContent>
       </Card>
+
+      {/* Teacher Feedback */}
+      {submission.feedback && (
+        <Card sx={{ mb: 3, border: 2, borderColor: 'primary.main' }}>
+          <CardContent>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+              <MessageSquare size={24} />
+              <Typography variant="h6">
+                Teacher Feedback
+              </Typography>
+            </Box>
+            <Paper sx={{ p: 2, bgcolor: 'primary.50', border: 1, borderColor: 'primary.light' }}>
+              <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
+                {submission.feedback}
+              </Typography>
+            </Paper>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Questions and Answers */}
       {submission.quiz_answers && submission.quiz_answers.answers && submission.quiz_answers.answers.length > 0 ? (

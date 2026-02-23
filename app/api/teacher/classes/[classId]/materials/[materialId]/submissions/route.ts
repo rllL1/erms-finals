@@ -43,7 +43,7 @@ export async function PUT(
   try {
     const supabase = await createClient()
     const body = await request.json()
-    const { submission_id, score, max_score, teacher_id } = body
+    const { submission_id, score, max_score, teacher_id, feedback } = body
 
     if (!submission_id || score === undefined || !max_score) {
       return NextResponse.json(
@@ -52,16 +52,23 @@ export async function PUT(
       )
     }
 
+    const updateData: Record<string, unknown> = {
+      score,
+      max_score,
+      is_graded: true,
+      status: 'graded',
+      graded_at: new Date().toISOString(),
+      graded_by: teacher_id,
+    }
+
+    // Include feedback if provided (can be empty string to clear)
+    if (feedback !== undefined) {
+      updateData.feedback = feedback || null
+    }
+
     const { data: gradedSubmission, error } = await supabase
       .from('student_submissions')
-      .update({
-        score,
-        max_score,
-        is_graded: true,
-        status: 'graded',
-        graded_at: new Date().toISOString(),
-        graded_by: teacher_id
-      })
+      .update(updateData)
       .eq('id', submission_id)
       .select()
       .single()

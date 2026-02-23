@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
       .from('class_students')
       .select(`
         id,
+        status,
         joined_at,
         group_classes (
           id,
@@ -77,24 +78,51 @@ export async function POST(request: NextRequest) {
     // Check if student is already enrolled
     const { data: existingEnrollment, error: enrollError } = await supabase
       .from('class_students')
-      .select('id')
+      .select('id, status')
       .eq('class_id', classData.id)
       .eq('student_id', student_id)
       .single()
 
     if (existingEnrollment) {
+      // If previously denied, allow re-requesting by updating status to pending
+      if (existingEnrollment.status === 'denied') {
+        const { data: updated, error: updateError } = await supabase
+          .from('class_students')
+          .update({ status: 'pending', joined_at: new Date().toISOString() })
+          .eq('id', existingEnrollment.id)
+          .select()
+          .single()
+
+        if (updateError) throw updateError
+
+        return NextResponse.json({
+          message: 'Your join request has been re-submitted for approval',
+          enrollment: updated,
+          class: classData,
+          status: 'pending'
+        }, { status: 201 })
+      }
+
+      if (existingEnrollment.status === 'pending') {
+        return NextResponse.json(
+          { error: 'Your join request is already pending approval' },
+          { status: 409 }
+        )
+      }
+
       return NextResponse.json(
         { error: 'You are already enrolled in this class' },
         { status: 409 }
       )
     }
 
-    // Enroll student in class
+    // Enroll student in class with pending status
     const { data: enrollment, error: insertError } = await supabase
       .from('class_students')
       .insert({
         class_id: classData.id,
-        student_id
+        student_id,
+        status: 'pending'
       })
       .select()
       .single()
@@ -102,9 +130,10 @@ export async function POST(request: NextRequest) {
     if (insertError) throw insertError
 
     return NextResponse.json({
-      message: 'Successfully joined class',
+      message: 'Join request submitted! Waiting for teacher approval.',
       enrollment,
-      class: classData
+      class: classData,
+      status: 'pending'
     }, { status: 201 })
   } catch (error) {
     console.error('Error joining class:', error)

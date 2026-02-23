@@ -19,10 +19,10 @@ export async function GET(
       )
     }
 
-    // Verify student is enrolled in the class
+    // Verify student is enrolled and approved in the class
     const { data: enrollment, error: enrollError } = await supabase
       .from('class_students')
-      .select('id')
+      .select('id, status')
       .eq('class_id', classId)
       .eq('student_id', studentId)
       .single()
@@ -30,6 +30,20 @@ export async function GET(
     if (!enrollment) {
       return NextResponse.json(
         { error: 'You are not enrolled in this class' },
+        { status: 403 }
+      )
+    }
+
+    if (enrollment.status === 'pending') {
+      return NextResponse.json(
+        { error: 'Your join request is still pending approval from the teacher' },
+        { status: 403 }
+      )
+    }
+
+    if (enrollment.status === 'denied') {
+      return NextResponse.json(
+        { error: 'Your join request for this class was denied' },
         { status: 403 }
       )
     }

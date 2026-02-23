@@ -19,7 +19,7 @@ import {
   useMediaQuery,
   useTheme,
 } from '@mui/material'
-import { Plus, BookOpen, Clock, User, ArrowRight } from 'lucide-react'
+import { Plus, BookOpen, Clock, User, ArrowRight, AlertCircle, XCircle } from 'lucide-react'
 import type { ClassStudent } from '@/lib/types'
 import NotificationModal, { type ModalSeverity } from '@/app/components/NotificationModal'
 
@@ -89,7 +89,10 @@ export default function StudentClassClient({ student }: { student: Student }) {
       const data = await response.json()
 
       if (response.ok) {
-        setNotification({ open: true, severity: 'success', message: `Successfully joined ${data.class.class_name}!` })
+        const successMsg = data.status === 'pending' 
+          ? `Join request submitted for ${data.class.class_name}! Waiting for teacher approval.`
+          : `Successfully joined ${data.class.class_name}!`
+        setNotification({ open: true, severity: 'success', message: successMsg })
         setOpenJoinDialog(false)
         setClassCode('')
         fetchClasses()
@@ -178,6 +181,10 @@ export default function StudentClassClient({ student }: { student: Student }) {
           {enrollments.map((enrollment) => {
             const cls = enrollment.group_classes
             if (!cls) return null
+            const status = enrollment.status || 'approved'
+            const isApproved = status === 'approved'
+            const isPending = status === 'pending'
+            const isDenied = status === 'denied'
 
             return (
               <Card
@@ -186,24 +193,45 @@ export default function StudentClassClient({ student }: { student: Student }) {
                   height: '100%',
                   display: 'flex',
                   flexDirection: 'column',
-                  cursor: 'pointer',
-                  '&:hover': {
+                  cursor: isApproved ? 'pointer' : 'default',
+                  opacity: isDenied ? 0.6 : 1,
+                  '&:hover': isApproved ? {
                     boxShadow: 4,
                     transform: 'translateY(-4px)',
                     transition: 'all 0.3s',
-                  },
-                  '@media (hover: none)': {
+                  } : {},
+                  '@media (hover: none)': isApproved ? {
                     '&:active': {
                       transform: 'scale(0.98)',
                     }
-                  }
+                  } : {}
                 }}
-                onClick={() => router.push(`/student/class/${cls.id}`)}
+                onClick={() => isApproved && router.push(`/student/class/${cls.id}`)}
               >
                 <CardContent sx={{ flexGrow: 1, p: { xs: 2, sm: 3 } }}>
-                  <Typography variant="h6" component="h2" gutterBottom sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}>
-                    {cls.class_name}
-                  </Typography>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                    <Typography variant="h6" component="h2" gutterBottom sx={{ fontSize: { xs: '1rem', sm: '1.25rem' }, mb: 0, flex: 1, pr: 1 }}>
+                      {cls.class_name}
+                    </Typography>
+                    {isPending && (
+                      <Chip
+                        icon={<AlertCircle size={14} />}
+                        label="Pending"
+                        size="small"
+                        color="warning"
+                        sx={{ flexShrink: 0 }}
+                      />
+                    )}
+                    {isDenied && (
+                      <Chip
+                        icon={<XCircle size={14} />}
+                        label="Denied"
+                        size="small"
+                        color="error"
+                        sx={{ flexShrink: 0 }}
+                      />
+                    )}
+                  </Box>
 
                   <Chip
                     label={cls.subject}
@@ -225,11 +253,23 @@ export default function StudentClassClient({ student }: { student: Student }) {
                     </Typography>
                   </Box>
 
+                  {isPending && (
+                    <Alert severity="info" sx={{ mb: 1, py: 0.5, '& .MuiAlert-message': { fontSize: '0.75rem' } }}>
+                      Waiting for teacher approval
+                    </Alert>
+                  )}
+
+                  {isDenied && (
+                    <Alert severity="error" sx={{ mb: 1, py: 0.5, '& .MuiAlert-message': { fontSize: '0.75rem' } }}>
+                      Your join request was denied
+                    </Alert>
+                  )}
+
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2 }}>
                     <Typography variant="caption" color="text.secondary">
-                      Joined {new Date(enrollment.joined_at).toLocaleDateString()}
+                      {isApproved ? `Joined ${new Date(enrollment.joined_at).toLocaleDateString()}` : `Requested ${new Date(enrollment.joined_at).toLocaleDateString()}`}
                     </Typography>
-                    <ArrowRight size={20} color="#10b981" />
+                    {isApproved && <ArrowRight size={20} color="#10b981" />}
                   </Box>
                 </CardContent>
               </Card>

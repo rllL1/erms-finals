@@ -15,6 +15,7 @@ export async function GET(
       .select(`
         id,
         student_id,
+        status,
         joined_at,
         students (
           id,
@@ -70,6 +71,61 @@ export async function DELETE(
     console.error('Error removing student:', error)
     return NextResponse.json(
       { error: 'Failed to remove student' },
+      { status: 500 }
+    )
+  }
+}
+
+// PATCH - Approve or deny a student's join request
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ classId: string }> }
+) {
+  try {
+    const supabase = await createClient()
+    const { classId } = await params
+    const body = await request.json()
+    const { student_id, status } = body
+
+    if (!student_id || !status) {
+      return NextResponse.json(
+        { error: 'Student ID and status are required' },
+        { status: 400 }
+      )
+    }
+
+    if (!['approved', 'denied'].includes(status)) {
+      return NextResponse.json(
+        { error: 'Status must be "approved" or "denied"' },
+        { status: 400 }
+      )
+    }
+
+    const { data, error } = await supabase
+      .from('class_students')
+      .update({ status })
+      .eq('class_id', classId)
+      .eq('student_id', student_id)
+      .select()
+      .single()
+
+    if (error) throw error
+
+    if (!data) {
+      return NextResponse.json(
+        { error: 'Student enrollment not found' },
+        { status: 404 }
+      )
+    }
+
+    return NextResponse.json({
+      message: `Student ${status === 'approved' ? 'approved' : 'denied'} successfully`,
+      enrollment: data
+    })
+  } catch (error) {
+    console.error('Error updating student status:', error)
+    return NextResponse.json(
+      { error: 'Failed to update student status' },
       { status: 500 }
     )
   }

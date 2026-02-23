@@ -78,6 +78,8 @@ export default function StudentClassDetailClient({
       if (response.ok) {
         console.log('Materials fetched:', data.materials)
         setMaterials(data.materials || [])
+      } else if (response.status === 403) {
+        setError(data.error || 'You do not have access to this class')
       }
     } catch (err) {
       console.error('Error fetching materials:', err)

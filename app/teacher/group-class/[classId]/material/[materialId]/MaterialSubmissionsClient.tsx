@@ -152,6 +152,7 @@ export default function MaterialSubmissionsClient({
             score: parseFloat(gradeForm.score),
             max_score: selectedSubmission.max_score,
             teacher_id: teacher.id,
+            feedback: gradeForm.feedback.trim() || null,
           }),
         }
       )

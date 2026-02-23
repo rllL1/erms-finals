@@ -63,6 +63,7 @@ export async function GET(
         submitted_at: submission.submitted_at,
         quiz_answers: submission.quiz_answers,
         assignment_response: submission.assignment_response,
+        feedback: submission.feedback || null,
       },
       material: submission.class_materials,
     })

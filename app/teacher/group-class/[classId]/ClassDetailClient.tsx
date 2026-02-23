@@ -31,7 +31,7 @@ import {
   InputLabel,
   IconButton,
 } from '@mui/material'
-import { ArrowLeft, Users, FileText, Plus, Trash2, Code } from 'lucide-react'
+import { ArrowLeft, Users, FileText, Plus, Trash2, Code, CheckCircle, XCircle, Clock } from 'lucide-react'
 import type { GroupClass, ClassStudent, ClassMaterial } from '@/lib/types'
 import NotificationModal, { type ModalSeverity } from '@/app/components/NotificationModal'
 import ConfirmationModal from '@/app/components/ConfirmationModal'
@@ -194,6 +194,48 @@ export default function ClassDetailClient({ classId, teacher }: { classId: strin
     setConfirmModal({ open: true, id: studentId, type: 'student', name: studentName })
   }
 
+  const handleApproveStudent = async (studentId: string) => {
+    try {
+      const response = await fetch(`/api/teacher/classes/${classId}/students`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ student_id: studentId, status: 'approved' }),
+      })
+
+      if (response.ok) {
+        setNotification({ open: true, severity: 'success', message: 'Student approved successfully!' })
+        fetchStudents()
+        fetchClassDetails()
+      } else {
+        const data = await response.json()
+        setNotification({ open: true, severity: 'error', message: data.error || 'Failed to approve student' })
+      }
+    } catch (_err) {
+      setNotification({ open: true, severity: 'error', message: 'An error occurred' })
+    }
+  }
+
+  const handleDenyStudent = async (studentId: string) => {
+    try {
+      const response = await fetch(`/api/teacher/classes/${classId}/students`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ student_id: studentId, status: 'denied' }),
+      })
+
+      if (response.ok) {
+        setNotification({ open: true, severity: 'success', message: 'Student request denied' })
+        fetchStudents()
+        fetchClassDetails()
+      } else {
+        const data = await response.json()
+        setNotification({ open: true, severity: 'error', message: data.error || 'Failed to deny student' })
+      }
+    } catch (_err) {
+      setNotification({ open: true, severity: 'error', message: 'An error occurred' })
+    }
+  }
+
   const handleRemoveMaterialClick = (materialId: string, materialTitle: string) => {
     setConfirmModal({ open: true, id: materialId, type: 'material', name: materialTitle })
   }
@@ -291,7 +333,7 @@ export default function ClassDetailClient({ classId, teacher }: { classId: strin
             <Chip label={classData.subject} color="primary" />
             <Chip
               icon={<Users size={16} />}
-              label={`${students.length} Student${students.length !== 1 ? 's' : ''}`}
+              label={`${students.filter(s => s.status === 'approved').length} Student${students.filter(s => s.status === 'approved').length !== 1 ? 's' : ''}`}
             />
           </Box>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
@@ -308,19 +350,87 @@ export default function ClassDetailClient({ classId, teacher }: { classId: strin
 
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
         <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)}>
-          <Tab label="Students" />
+          <Tab label={
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              Students
+              {students.filter(s => s.status === 'pending').length > 0 && (
+                <Chip 
+                  label={students.filter(s => s.status === 'pending').length} 
+                  size="small" 
+                  color="warning"
+                  sx={{ height: 20, fontSize: '0.75rem' }}
+                />
+              )}
+            </Box>
+          } />
           <Tab label="Materials" />
         </Tabs>
       </Box>
 
       <TabPanel value={tabValue} index={0}>
+        {/* Pending Requests Section */}
+        {students.filter(s => s.status === 'pending').length > 0 && (
+          <Card sx={{ mb: 3, border: '2px solid', borderColor: 'warning.main' }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                <Clock size={20} color="#ed6c02" />
+                <Typography variant="h6" color="warning.main">
+                  Pending Requests ({students.filter(s => s.status === 'pending').length})
+                </Typography>
+              </Box>
+              <TableContainer component={Paper} variant="outlined">
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Student Name</TableCell>
+                      <TableCell>Email</TableCell>
+                      <TableCell>Requested</TableCell>
+                      <TableCell align="right">Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {students.filter(s => s.status === 'pending').map((enrollment) => (
+                      <TableRow key={enrollment.id}>
+                        <TableCell>{enrollment.students?.student_name || 'N/A'}</TableCell>
+                        <TableCell>{enrollment.students?.email || 'N/A'}</TableCell>
+                        <TableCell>
+                          {new Date(enrollment.joined_at).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell align="right">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleApproveStudent(enrollment.student_id)}
+                            sx={{ color: 'rgb(16, 185, 129)', mr: 1 }}
+                            title="Approve"
+                          >
+                            <CheckCircle size={20} />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => handleDenyStudent(enrollment.student_id)}
+                            title="Deny"
+                          >
+                            <XCircle size={20} />
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Approved Students Section */}
         <Card>
           <CardContent>
             <Typography variant="h6" gutterBottom>
               Enrolled Students
             </Typography>
-            {students.length === 0 ? (
-              <Typography color="text.secondary">No students enrolled yet</Typography>
+            {students.filter(s => s.status === 'approved').length === 0 ? (
+              <Typography color="text.secondary">No approved students yet</Typography>
             ) : (
               <TableContainer component={Paper} variant="outlined">
                 <Table>
@@ -333,7 +443,7 @@ export default function ClassDetailClient({ classId, teacher }: { classId: strin
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {students.map((enrollment) => (
+                    {students.filter(s => s.status === 'approved').map((enrollment) => (
                       <TableRow key={enrollment.id}>
                         <TableCell>{enrollment.students?.student_name || 'N/A'}</TableCell>
                         <TableCell>{enrollment.students?.email || 'N/A'}</TableCell>
@@ -366,6 +476,58 @@ export default function ClassDetailClient({ classId, teacher }: { classId: strin
             )}
           </CardContent>
         </Card>
+
+        {/* Denied Students Section */}
+        {students.filter(s => s.status === 'denied').length > 0 && (
+          <Card sx={{ mt: 3, opacity: 0.7 }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom color="text.secondary">
+                Denied Requests ({students.filter(s => s.status === 'denied').length})
+              </Typography>
+              <TableContainer component={Paper} variant="outlined">
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Student Name</TableCell>
+                      <TableCell>Email</TableCell>
+                      <TableCell>Status</TableCell>
+                      <TableCell align="right">Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {students.filter(s => s.status === 'denied').map((enrollment) => (
+                      <TableRow key={enrollment.id}>
+                        <TableCell>{enrollment.students?.student_name || 'N/A'}</TableCell>
+                        <TableCell>{enrollment.students?.email || 'N/A'}</TableCell>
+                        <TableCell>
+                          <Chip label="Denied" color="error" size="small" />
+                        </TableCell>
+                        <TableCell align="right">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleApproveStudent(enrollment.student_id)}
+                            sx={{ color: 'rgb(16, 185, 129)', mr: 1 }}
+                            title="Approve Instead"
+                          >
+                            <CheckCircle size={18} />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => handleRemoveStudentClick(enrollment.student_id, enrollment.students?.student_name || 'this student')}
+                            title="Remove"
+                          >
+                            <Trash2 size={18} />
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </CardContent>
+          </Card>
+        )}
       </TabPanel>
 
       <TabPanel value={tabValue} index={1}>
