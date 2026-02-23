@@ -14,7 +14,12 @@ export async function POST(
     }
 
     const { classId } = await params
-    const { quiz_percentage, assignment_percentage, exam_percentage } = await request.json()
+    const body = await request.json()
+    const { quiz_percentage, assignment_percentage, exam_percentage } = body
+    // Also accept new grading category names
+    const affective_percentage = body.affective_percentage ?? quiz_percentage
+    const summative_percentage = body.summative_percentage ?? assignment_percentage
+    const formative_percentage = body.formative_percentage ?? exam_percentage
 
     // Validate percentages
     if (quiz_percentage + assignment_percentage + exam_percentage !== 100) {
@@ -51,6 +56,9 @@ export async function POST(
         quiz_percentage,
         assignment_percentage,
         exam_percentage,
+        affective_percentage,
+        summative_percentage,
+        formative_percentage,
         updated_at: new Date().toISOString()
       }, {
         onConflict: 'class_id'
