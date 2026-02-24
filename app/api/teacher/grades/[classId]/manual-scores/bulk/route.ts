@@ -55,11 +55,11 @@ export async function POST(
     let errorCount = 0
 
     for (const score of scores) {
-      const { student_id, affective_score, summative_score, formative_score } = score
+      const { student_id, affective_score, summative_score, formative_score, details } = score
 
       if (!student_id) continue
 
-      const scoreData: Record<string, string | number | null> = {
+      const scoreData: Record<string, unknown> = {
         class_id: classId,
         student_id,
         term,
@@ -84,6 +84,11 @@ export async function POST(
         scoreData.formative_score = null
       }
 
+      // Include details JSONB if provided
+      if (details && typeof details === 'object') {
+        scoreData.details = details
+      }
+
       // Check if record exists
       const { data: existing } = await supabase
         .from('grade_manual_scores')
@@ -100,11 +105,30 @@ export async function POST(
           .update(scoreData)
           .eq('id', existing.id)
         error = result.error
+        // If details column doesn't exist, retry without it
+        if (error && error.message?.includes('details')) {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { details: _d, ...scoreDataWithoutDetails } = scoreData
+          const retry = await supabase
+            .from('grade_manual_scores')
+            .update(scoreDataWithoutDetails)
+            .eq('id', existing.id)
+          error = retry.error
+        }
       } else {
         const result = await supabase
           .from('grade_manual_scores')
           .insert(scoreData)
         error = result.error
+        // If details column doesn't exist, retry without it
+        if (error && error.message?.includes('details')) {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { details: _d2, ...scoreDataWithoutDetails } = scoreData
+          const retry = await supabase
+            .from('grade_manual_scores')
+            .insert(scoreDataWithoutDetails)
+          error = retry.error
+        }
       }
 
       if (error) {

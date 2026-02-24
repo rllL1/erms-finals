@@ -13,8 +13,9 @@ import {
   Chip,
   Paper,
   Divider,
+  IconButton,
 } from '@mui/material'
-import { ArrowLeft, CheckCircle, XCircle, MessageSquare } from 'lucide-react'
+import { ArrowLeft, CheckCircle, XCircle, MessageSquare, ChevronLeft, ChevronRight } from 'lucide-react'
 
 interface Student {
   id: string
@@ -70,6 +71,7 @@ export default function StudentResultClient({
   const [material, setMaterial] = useState<Material | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [resultPage, setResultPage] = useState(0) // 0-indexed page for result pagination
 
   useEffect(() => {
     fetchSubmissionResult()
@@ -215,95 +217,191 @@ export default function StudentResultClient({
             Review Your Answers
           </Typography>
 
-          {submission.quiz_answers.answers.map((answer, index) => (
-        <Card key={index} sx={{ mb: 2 }}>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-              <Typography variant="h6">
-                Question {index + 1}
-              </Typography>
-              
-              {answer.is_correct !== null && (
-                answer.is_correct ? (
-                  <Chip
-                    icon={<CheckCircle size={16} />}
-                    label="Correct"
-                    color="success"
-                    size="small"
-                  />
-                ) : (
-                  <Chip
-                    icon={<XCircle size={16} />}
-                    label="Wrong"
-                    color="error"
-                    size="small"
-                  />
-                )
-              )}
-              
-              <Chip
-                label={`${answer.earned_points}/${answer.points} pts`}
+          {/* Question Number Indicator */}
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2, justifyContent: 'center' }}>
+            {submission.quiz_answers.answers.map((ans, idx) => (
+              <IconButton
+                key={idx}
                 size="small"
-                variant="outlined"
-              />
-            </Box>
-
-            {/* Question Text */}
-            <Paper sx={{ p: 2, bgcolor: 'grey.50', mb: 2 }}>
-              <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                {answer.question}
-              </Typography>
-            </Paper>
-
-            {/* Student Answer */}
-            <Box sx={{ mb: 2 }}>
-              <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                Your Answer:
-              </Typography>
-              <Paper
+                onClick={() => setResultPage(idx)}
                 sx={{
-                  p: 2,
-                  bgcolor: answer.is_correct === true ? 'success.light' : answer.is_correct === false ? 'error.light' : 'grey.100',
-                  border: 1,
-                  borderColor: answer.is_correct === true ? 'success.main' : answer.is_correct === false ? 'error.main' : 'grey.300',
+                  width: 36,
+                  height: 36,
+                  borderRadius: '50%',
+                  fontSize: '0.85rem',
+                  fontWeight: resultPage === idx ? 700 : 400,
+                  bgcolor: resultPage === idx
+                    ? 'rgb(147, 51, 234)'
+                    : ans.is_correct === true
+                      ? 'rgb(16, 185, 129)'
+                      : ans.is_correct === false
+                        ? 'rgb(239, 68, 68)'
+                        : 'grey.300',
+                  color: resultPage === idx || ans.is_correct !== null ? '#fff' : 'text.primary',
+                  '&:hover': {
+                    bgcolor: resultPage === idx
+                      ? 'rgb(126, 34, 206)'
+                      : ans.is_correct === true
+                        ? 'rgb(5, 150, 105)'
+                        : ans.is_correct === false
+                          ? 'rgb(220, 38, 38)'
+                          : 'grey.400',
+                  },
                 }}
               >
-                <Typography variant="body1">
-                  {answer.student_answer || 'No answer provided'}
-                </Typography>
-              </Paper>
-            </Box>
+                {idx + 1}
+              </IconButton>
+            ))}
+          </Box>
 
-            {/* Correct Answer (for non-essay questions) */}
-            {answer.question_type !== 'essay' && answer.correct_answer && (
-              <Box>
-                <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                  Correct Answer:
-                </Typography>
-                <Paper
-                  sx={{
-                    p: 2,
-                    bgcolor: 'success.light',
-                    border: 1,
-                    borderColor: 'success.main',
-                  }}
-                >
-                  <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                    {answer.correct_answer}
-                  </Typography>
-                </Paper>
-              </Box>
-            )}
+          {/* Single Answer Display */}
+          {(() => {
+            const answer = submission.quiz_answers.answers[resultPage]
+            if (!answer) return null
+            return (
+              <Card sx={{ mb: 2 }}>
+                <CardContent>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                    <Typography variant="h6">
+                      Question {resultPage + 1} of {submission.quiz_answers.answers.length}
+                    </Typography>
 
-            {/* For essay questions pending grading */}
-            {answer.question_type === 'essay' && answer.is_correct === null && (
-              <Alert severity="info">
-                This essay question is pending manual grading by your teacher.
-              </Alert>
-            )}
-          </CardContent>
-        </Card>
-      ))}
+                    {answer.is_correct !== null && (
+                      answer.is_correct ? (
+                        <Chip
+                          icon={<CheckCircle size={16} />}
+                          label="Correct"
+                          color="success"
+                          size="small"
+                        />
+                      ) : (
+                        <Chip
+                          icon={<XCircle size={16} />}
+                          label="Wrong"
+                          color="error"
+                          size="small"
+                        />
+                      )
+                    )}
+
+                    <Chip
+                      label={`${answer.earned_points}/${answer.points} pts`}
+                      size="small"
+                      variant="outlined"
+                    />
+                  </Box>
+
+                  {/* Question Text */}
+                  <Paper sx={{ p: 2, bgcolor: 'grey.50', mb: 2 }}>
+                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                      {answer.question}
+                    </Typography>
+                  </Paper>
+
+                  {/* Student Answer */}
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                      Your Answer:
+                    </Typography>
+                    <Paper
+                      sx={{
+                        p: 2,
+                        bgcolor: answer.is_correct === true ? 'success.light' : answer.is_correct === false ? 'error.light' : 'grey.100',
+                        border: 1,
+                        borderColor: answer.is_correct === true ? 'success.main' : answer.is_correct === false ? 'error.main' : 'grey.300',
+                      }}
+                    >
+                      <Typography variant="body1">
+                        {answer.student_answer || 'No answer provided'}
+                      </Typography>
+                    </Paper>
+                  </Box>
+
+                  {/* Correct Answer (for non-essay questions) */}
+                  {answer.question_type !== 'essay' && answer.correct_answer && (
+                    <Box sx={{ mb: 2 }}>
+                      <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                        Correct Answer:
+                      </Typography>
+                      <Paper
+                        sx={{
+                          p: 2,
+                          bgcolor: 'success.light',
+                          border: 1,
+                          borderColor: 'success.main',
+                        }}
+                      >
+                        <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                          {answer.correct_answer}
+                        </Typography>
+                      </Paper>
+                    </Box>
+                  )}
+
+                  {/* Score per question */}
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                      Score:
+                    </Typography>
+                    <Chip
+                      label={`${answer.earned_points} / ${answer.points} points`}
+                      color={answer.earned_points === answer.points ? 'success' : answer.earned_points > 0 ? 'warning' : 'error'}
+                      variant="outlined"
+                    />
+                  </Box>
+
+                  {/* Teacher feedback for this question (if available at submission level) */}
+                  {submission.feedback && resultPage === submission.quiz_answers.answers.length - 1 && (
+                    <Box sx={{ mt: 2 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                        <MessageSquare size={18} />
+                        <Typography variant="subtitle2" color="text.secondary">
+                          Teacher Feedback:
+                        </Typography>
+                      </Box>
+                      <Paper sx={{ p: 2, bgcolor: 'primary.50', border: 1, borderColor: 'primary.light' }}>
+                        <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                          {submission.feedback}
+                        </Typography>
+                      </Paper>
+                    </Box>
+                  )}
+
+                  {/* For essay questions pending grading */}
+                  {answer.question_type === 'essay' && answer.is_correct === null && (
+                    <Alert severity="info" sx={{ mt: 2 }}>
+                      This essay question is pending manual grading by your teacher.
+                    </Alert>
+                  )}
+                </CardContent>
+              </Card>
+            )
+          })()}
+
+          {/* Navigation Buttons */}
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Button
+              variant="outlined"
+              startIcon={<ChevronLeft size={18} />}
+              onClick={() => setResultPage((prev) => Math.max(0, prev - 1))}
+              disabled={resultPage === 0}
+            >
+              Previous
+            </Button>
+
+            <Typography variant="body2" color="text.secondary">
+              {resultPage + 1} / {submission.quiz_answers.answers.length}
+            </Typography>
+
+            <Button
+              variant="outlined"
+              endIcon={<ChevronRight size={18} />}
+              onClick={() => setResultPage((prev) => Math.min(submission.quiz_answers.answers.length - 1, prev + 1))}
+              disabled={resultPage === submission.quiz_answers.answers.length - 1}
+            >
+              Next
+            </Button>
+          </Box>
         </>
       ) : (
         /* Assignment Submission */

@@ -45,7 +45,7 @@ export async function POST(
     let savedCount = 0
 
     for (const score of scores) {
-      const { student_id, prelim_score, midterm_score, finals_score } = score
+      const { student_id, prelim_score, midterm_score, finals_score, portfolio_score } = score
 
       if (!student_id) continue
 
@@ -85,6 +85,16 @@ export async function POST(
         updateData.finals_score = null
       }
 
+      // Handle portfolio score
+      if (portfolio_score !== undefined && portfolio_score !== null && portfolio_score !== '') {
+        const val = parseFloat(String(portfolio_score))
+        if (!isNaN(val) && val >= 0 && val <= 100) {
+          updateData.portfolio_score = val
+        }
+      } else if (portfolio_score === null || portfolio_score === '') {
+        updateData.portfolio_score = null
+      }
+
       // Check if record exists
       const { data: existing } = await supabase
         .from('student_exam_scores')
@@ -101,6 +111,17 @@ export async function POST(
           .eq('class_id', classId)
           .eq('student_id', student_id)
         error = result.error
+        // If portfolio_score column doesn't exist, retry without it
+        if (error && error.message?.includes('portfolio_score')) {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { portfolio_score: _p, ...dataWithout } = updateData
+          const retry = await supabase
+            .from('student_exam_scores')
+            .update(dataWithout)
+            .eq('class_id', classId)
+            .eq('student_id', student_id)
+          error = retry.error
+        }
       } else {
         const result = await supabase
           .from('student_exam_scores')
@@ -110,6 +131,19 @@ export async function POST(
             ...updateData
           })
         error = result.error
+        // If portfolio_score column doesn't exist, retry without it
+        if (error && error.message?.includes('portfolio_score')) {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { portfolio_score: _p2, ...dataWithout } = updateData
+          const retry = await supabase
+            .from('student_exam_scores')
+            .insert({
+              class_id: classId,
+              student_id,
+              ...dataWithout
+            })
+          error = retry.error
+        }
       }
 
       if (error) {

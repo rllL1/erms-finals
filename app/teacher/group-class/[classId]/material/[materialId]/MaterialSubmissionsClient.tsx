@@ -55,6 +55,7 @@ interface Submission {
   auto_graded: boolean
   status: string
   quiz_answers: any
+  feedback?: string | null
   students?: {
     id: string
     student_name: string
@@ -179,6 +180,67 @@ export default function MaterialSubmissionsClient({
     return 'error'
   }
 
+  // Compute correct/wrong counts from quiz_answers for a submission
+  const getAnswerStats = (submission: Submission) => {
+    const answers = submission.quiz_answers?.answers
+    if (!Array.isArray(answers)) return { correct: 0, wrong: 0, pending: 0, total: 0 }
+    let correct = 0
+    let wrong = 0
+    let pending = 0
+    for (const a of answers) {
+      if (a.is_correct === true) correct++
+      else if (a.is_correct === false) wrong++
+      else pending++
+    }
+    return { correct, wrong, pending, total: answers.length }
+  }
+
+  // Compute class-wide summary stats
+  const summaryStats = (() => {
+    if (submissions.length === 0) return null
+    const totalStudents = submissions.length
+    const gradedCount = submissions.filter((s) => s.is_graded).length
+    const pendingCount = totalStudents - gradedCount
+    const scoredSubmissions = submissions.filter((s) => s.score !== null)
+    const avgScore = scoredSubmissions.length > 0
+      ? (scoredSubmissions.reduce((sum, s) => sum + (s.score || 0), 0) / scoredSubmissions.length).toFixed(1)
+      : 'N/A'
+    const avgMax = scoredSubmissions.length > 0
+      ? (scoredSubmissions.reduce((sum, s) => sum + s.max_score, 0) / scoredSubmissions.length).toFixed(1)
+      : 'N/A'
+    const highestScore = scoredSubmissions.length > 0
+      ? Math.max(...scoredSubmissions.map((s) => s.score || 0))
+      : 0
+    const lowestScore = scoredSubmissions.length > 0
+      ? Math.min(...scoredSubmissions.map((s) => s.score || 0))
+      : 0
+    const maxMaxScore = scoredSubmissions.length > 0 ? scoredSubmissions[0]?.max_score || 0 : 0
+
+    let totalCorrect = 0
+    let totalWrong = 0
+    let totalPendingAnswers = 0
+    for (const s of submissions) {
+      const stats = getAnswerStats(s)
+      totalCorrect += stats.correct
+      totalWrong += stats.wrong
+      totalPendingAnswers += stats.pending
+    }
+
+    return {
+      totalStudents,
+      gradedCount,
+      pendingCount,
+      avgScore,
+      avgMax,
+      highestScore,
+      lowestScore,
+      maxMaxScore,
+      totalCorrect,
+      totalWrong,
+      totalPendingAnswers,
+    }
+  })()
+
   if (!mounted) {
     return null
   }
@@ -232,6 +294,57 @@ export default function MaterialSubmissionsClient({
         </CardContent>
       </Card>
 
+      {/* Summary Statistics Card */}
+      {summaryStats && (
+        <Card sx={{ mb: 3, border: 1, borderColor: 'divider' }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              Score Summary
+            </Typography>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(5, 1fr)' }, gap: 2 }}>
+              <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: 'grey.50', borderRadius: 1 }}>
+                <Typography variant="h5" color="primary.main">{summaryStats.totalStudents}</Typography>
+                <Typography variant="caption" color="text.secondary">Total Submissions</Typography>
+              </Box>
+              <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: 'grey.50', borderRadius: 1 }}>
+                <Typography variant="h5" color="success.main">{summaryStats.gradedCount}</Typography>
+                <Typography variant="caption" color="text.secondary">Graded</Typography>
+              </Box>
+              <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: 'grey.50', borderRadius: 1 }}>
+                <Typography variant="h5" color="warning.main">{summaryStats.pendingCount}</Typography>
+                <Typography variant="caption" color="text.secondary">Pending</Typography>
+              </Box>
+              <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: 'grey.50', borderRadius: 1 }}>
+                <Typography variant="h5" color="info.main">{summaryStats.avgScore}/{summaryStats.avgMax}</Typography>
+                <Typography variant="caption" color="text.secondary">Avg Score</Typography>
+              </Box>
+              <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: 'grey.50', borderRadius: 1 }}>
+                <Typography variant="h5">
+                  <Box component="span" sx={{ color: 'success.main' }}>{summaryStats.highestScore}</Box>
+                  {' / '}
+                  <Box component="span" sx={{ color: 'error.main' }}>{summaryStats.lowestScore}</Box>
+                </Typography>
+                <Typography variant="caption" color="text.secondary">Highest / Lowest</Typography>
+              </Box>
+              <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: 'success.50', borderRadius: 1 }}>
+                <Typography variant="h5" color="success.main">{summaryStats.totalCorrect}</Typography>
+                <Typography variant="caption" color="text.secondary">Total Correct</Typography>
+              </Box>
+              <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: 'error.50', borderRadius: 1 }}>
+                <Typography variant="h5" color="error.main">{summaryStats.totalWrong}</Typography>
+                <Typography variant="caption" color="text.secondary">Total Wrong</Typography>
+              </Box>
+              {summaryStats.totalPendingAnswers > 0 && (
+                <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: 'warning.50', borderRadius: 1 }}>
+                  <Typography variant="h5" color="warning.main">{summaryStats.totalPendingAnswers}</Typography>
+                  <Typography variant="caption" color="text.secondary">Pending Grading</Typography>
+                </Box>
+              )}
+            </Box>
+          </CardContent>
+        </Card>
+      )}
+
       {submissions.length === 0 ? (
         <Card>
           <CardContent sx={{ textAlign: 'center', py: 4 }}>
@@ -246,21 +359,20 @@ export default function MaterialSubmissionsClient({
             <TableHead>
               <TableRow>
                 <TableCell>Student Name</TableCell>
-                <TableCell>Email</TableCell>
-                <TableCell>Submitted At</TableCell>
-                <TableCell>Score</TableCell>
+                <TableCell>Total Score</TableCell>
+                <TableCell>Correct</TableCell>
+                <TableCell>Wrong</TableCell>
                 <TableCell>Status</TableCell>
+                <TableCell>Feedback</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {submissions.map((submission) => (
+              {submissions.map((submission) => {
+                const stats = getAnswerStats(submission)
+                return (
                 <TableRow key={submission.id}>
                   <TableCell>{submission.students?.student_name || 'N/A'}</TableCell>
-                  <TableCell>{submission.students?.email || 'N/A'}</TableCell>
-                  <TableCell>
-                    {new Date(submission.submitted_at).toLocaleString()}
-                  </TableCell>
                   <TableCell>
                     {submission.score !== null ? (
                       <Chip
@@ -273,6 +385,12 @@ export default function MaterialSubmissionsClient({
                     )}
                   </TableCell>
                   <TableCell>
+                    <Chip label={stats.correct} color="success" size="small" variant="outlined" />
+                  </TableCell>
+                  <TableCell>
+                    <Chip label={stats.wrong} color="error" size="small" variant="outlined" />
+                  </TableCell>
+                  <TableCell>
                     {submission.is_graded ? (
                       <Chip
                         icon={<CheckCircle size={16} />}
@@ -282,6 +400,15 @@ export default function MaterialSubmissionsClient({
                       />
                     ) : (
                       <Chip label="Pending" color="warning" size="small" />
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {submission.feedback ? (
+                      <Typography variant="body2" sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {submission.feedback}
+                      </Typography>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">—</Typography>
                     )}
                   </TableCell>
                   <TableCell align="right">
@@ -309,7 +436,8 @@ export default function MaterialSubmissionsClient({
                     )}
                   </TableCell>
                 </TableRow>
-              ))}
+                )
+              })}
             </TableBody>
           </Table>
         </TableContainer>

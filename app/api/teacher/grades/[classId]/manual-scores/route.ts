@@ -90,13 +90,28 @@ export async function GET(
       return NextResponse.json({ error: 'Failed to fetch students: ' + enrollError.message }, { status: 500 })
     }
 
-    // Get all manual grade scores for this class
-    let manualScores: { student_id: string; term: string; affective_score: number | null; summative_score: number | null; formative_score: number | null }[] = []
+    // Get all manual grade scores for this class (including details JSONB if available)
+    let manualScores: { student_id: string; term: string; affective_score: number | null; summative_score: number | null; formative_score: number | null; details?: Record<string, unknown> }[] = []
     try {
-      const { data, error: scoresError } = await supabase
+      // Try fetching with details column first
+      let data, scoresError
+      const result1 = await supabase
         .from('grade_manual_scores')
-        .select('student_id, term, affective_score, summative_score, formative_score')
+        .select('student_id, term, affective_score, summative_score, formative_score, details')
         .eq('class_id', classId)
+      
+      if (result1.error && result1.error.message?.includes('details')) {
+        // details column doesn't exist yet, fetch without it
+        const result2 = await supabase
+          .from('grade_manual_scores')
+          .select('student_id, term, affective_score, summative_score, formative_score')
+          .eq('class_id', classId)
+        data = result2.data
+        scoresError = result2.error
+      } else {
+        data = result1.data
+        scoresError = result1.error
+      }
 
       if (scoresError) {
         console.error('Error fetching manual scores:', scoresError)
@@ -109,7 +124,7 @@ export async function GET(
     }
 
     // Organize scores by student_id and term
-    const scoresByStudent: Record<string, Record<string, { affective_score: number | null; summative_score: number | null; formative_score: number | null }>> = {}
+    const scoresByStudent: Record<string, Record<string, { affective_score: number | null; summative_score: number | null; formative_score: number | null; details?: Record<string, unknown> }>> = {}
     manualScores.forEach((score) => {
       if (!scoresByStudent[score.student_id]) {
         scoresByStudent[score.student_id] = {}
@@ -117,26 +132,42 @@ export async function GET(
       scoresByStudent[score.student_id][score.term] = {
         affective_score: score.affective_score,
         summative_score: score.summative_score,
-        formative_score: score.formative_score
+        formative_score: score.formative_score,
+        details: score.details || {}
       }
     })
 
     // Fetch exam scores from student_exam_scores table
-    const examScoresMap: Record<string, { prelim_score: number | null; midterm_score: number | null; finals_score: number | null }> = {}
+    const examScoresMap: Record<string, { prelim_score: number | null; midterm_score: number | null; finals_score: number | null; portfolio_score: number | null }> = {}
     try {
-      const { data: examData, error: examError } = await supabase
+      // Try fetching with portfolio_score first
+      let examData, examError
+      const result1 = await supabase
         .from('student_exam_scores')
-        .select('student_id, prelim_score, midterm_score, finals_score')
+        .select('student_id, prelim_score, midterm_score, finals_score, portfolio_score')
         .eq('class_id', classId)
+      
+      if (result1.error && result1.error.message?.includes('portfolio_score')) {
+        const result2 = await supabase
+          .from('student_exam_scores')
+          .select('student_id, prelim_score, midterm_score, finals_score')
+          .eq('class_id', classId)
+        examData = result2.data
+        examError = result2.error
+      } else {
+        examData = result1.data
+        examError = result1.error
+      }
 
       if (examError) {
         console.error('Error fetching exam scores:', examError)
       } else if (examData) {
-        examData.forEach((row: { student_id: string; prelim_score: number | null; midterm_score: number | null; finals_score: number | null }) => {
+        examData.forEach((row: { student_id: string; prelim_score: number | null; midterm_score: number | null; finals_score: number | null; portfolio_score?: number | null }) => {
           examScoresMap[row.student_id] = {
             prelim_score: row.prelim_score,
             midterm_score: row.midterm_score,
-            finals_score: row.finals_score
+            finals_score: row.finals_score,
+            portfolio_score: row.portfolio_score ?? null
           }
         })
       }
@@ -150,7 +181,7 @@ export async function GET(
       const student = enrollment.students
       if (!student) return null
       const studentScores = scoresByStudent[student.id] || {}
-      const examScores = examScoresMap[student.id] || { prelim_score: null, midterm_score: null, finals_score: null }
+      const examScores = examScoresMap[student.id] || { prelim_score: null, midterm_score: null, finals_score: null, portfolio_score: null }
 
       return {
         enrollment_id: enrollment.id,
@@ -158,9 +189,9 @@ export async function GET(
         student_number: student.student_id,
         student_name: student.student_name,
         scores: {
-          prelim: studentScores.prelim || { affective_score: null, summative_score: null, formative_score: null },
-          midterm: studentScores.midterm || { affective_score: null, summative_score: null, formative_score: null },
-          finals: studentScores.finals || { affective_score: null, summative_score: null, formative_score: null }
+          prelim: studentScores.prelim || { affective_score: null, summative_score: null, formative_score: null, details: {} },
+          midterm: studentScores.midterm || { affective_score: null, summative_score: null, formative_score: null, details: {} },
+          finals: studentScores.finals || { affective_score: null, summative_score: null, formative_score: null, details: {} }
         },
         exam_scores: examScores
       }
