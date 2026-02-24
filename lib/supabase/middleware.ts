@@ -2,28 +2,6 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function updateSession(request: NextRequest) {
-  const pathname = request.nextUrl.pathname
-
-  // Skip middleware for service worker, static assets, and certain API routes
-  if (
-    pathname === '/sw.js' ||
-    pathname.startsWith('/_next/') ||
-    pathname.startsWith('/favicon') ||
-    pathname.endsWith('.png') ||
-    pathname.endsWith('.ico') ||
-    pathname.endsWith('.svg') ||
-    pathname.endsWith('.json') ||
-    pathname.startsWith('/api/auth/') ||
-    pathname.startsWith('/api/messages') ||
-    pathname.startsWith('/api/student/') ||
-    pathname.startsWith('/api/teacher/') ||
-    pathname.startsWith('/api/admin/')
-  ) {
-    return NextResponse.next({
-      request,
-    })
-  }
-
   let supabaseResponse = NextResponse.next({
     request,
   })
@@ -53,6 +31,8 @@ export async function updateSession(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser()
+
+  const pathname = request.nextUrl.pathname
 
   // Public routes that don't require authentication
   const publicRoutes = ['/login', '/', '/forgot-password']
