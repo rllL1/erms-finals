@@ -26,7 +26,7 @@ export async function sendWelcomeEmail({
   password,
   userType,
 }: WelcomeEmailParams): Promise<{ success: boolean; error?: string }> {
-  const loginUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://erms-finals.vercel.app/login'
+  const loginUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://sdscermsedu.vercel.app/login'
 const logoUrl = `${loginUrl}/234.png`
 
   const htmlContent = `
@@ -166,7 +166,7 @@ export async function sendPasswordResetOTP({
   name,
   otpCode,
 }: PasswordResetOTPParams): Promise<{ success: boolean; error?: string }> {
-  const loginUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://erms-finals.vercel.app/login'
+  const loginUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://sdscermsedu.vercel.app/login'
   const logoUrl = `${loginUrl}/234.png`
 
   const htmlContent = `
