@@ -26,8 +26,7 @@ export async function sendWelcomeEmail({
   password,
   userType,
 }: WelcomeEmailParams): Promise<{ success: boolean; error?: string }> {
-  const loginUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://sdscermsedu.vercel.app/login'
-const logoUrl = `${loginUrl}/234.png`
+  const loginUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://sdscermsedu.vercel.app'
 
   const htmlContent = `
 <!DOCTYPE html>
@@ -42,10 +41,9 @@ const logoUrl = `${loginUrl}/234.png`
     <tr>
       <td align="center" style="padding: 40px 0;">
         <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-          <!-- Header with Logo -->
+          <!-- Header -->
           <tr>
-            <td align="center" style="padding: 40px 40px 20px 40px; background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); border-radius: 12px 12px 0 0;">
-              <img src="${logoUrl}" alt="sdsc" style="width: 120px; height: auto; margin-bottom: 20px;">
+            <td align="center" style="padding: 40px 40px 20px 40px; background: linear-gradient(135deg, #0d5d2a 0%, #15803d 100%); border-radius: 12px 12px 0 0;">
               <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 600;">Welcome to St. Dominic Savio College</h1>
             </td>
           </tr>
@@ -53,7 +51,7 @@ const logoUrl = `${loginUrl}/234.png`
           <!-- Main Content -->
           <tr>
             <td style="padding: 40px;">
-              <h2 style="margin: 0 0 20px 0; color: #1e3a8a; font-size: 20px;">Your Account Has Been Created</h2>
+              <h2 style="margin: 0 0 20px 0; color: #0d5d2a; font-size: 20px;">Your Account Has Been Created</h2>
               
               <p style="margin: 0 0 20px 0; color: #374151; font-size: 16px; line-height: 1.6;">
                 Hi <strong>${name}</strong>,
@@ -64,8 +62,8 @@ const logoUrl = `${loginUrl}/234.png`
               </p>
               
               <!-- Login Details Box -->
-              <div style="background-color: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 24px; margin-bottom: 30px;">
-                <h3 style="margin: 0 0 16px 0; color: #0369a1; font-size: 16px; font-weight: 600;">
+              <div style="background-color: #d1fae5; border: 1px solid #10b981; border-radius: 8px; padding: 24px; margin-bottom: 30px;">
+                <h3 style="margin: 0 0 16px 0; color: #0d5d2a; font-size: 16px; font-weight: 600;">
                   📧 Login Details
                 </h3>
                 <table role="presentation" style="width: 100%; border-collapse: collapse;">
@@ -75,14 +73,14 @@ const logoUrl = `${loginUrl}/234.png`
                   </tr>
                   <tr>
                     <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Password:</td>
-                    <td style="padding: 8px 0; color: #111827; font-size: 14px; font-weight: 500; font-family: monospace; background-color: #fef3c7; padding-left: 8px; border-radius: 4px;">${password}</td>
+                    <td style="padding: 8px 0; color: #111827; font-size: 14px; font-weight: 500; font-family: monospace; background-color: #a7f3d0; padding-left: 8px; border-radius: 4px;">${password}</td>
                   </tr>
                 </table>
               </div>
               
               <!-- Login Button -->
               <div style="text-align: center; margin-bottom: 30px;">
-                <a href="${loginUrl}/login" style="display: inline-block; background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); color: #ffffff; text-decoration: none; padding: 14px 40px; border-radius: 8px; font-size: 16px; font-weight: 600; box-shadow: 0 4px 6px rgba(59, 130, 246, 0.3);">
+                <a href="${loginUrl}/login" style="display: inline-block; background: linear-gradient(135deg, #0d5d2a 0%, #15803d 100%); color: #ffffff; text-decoration: none; padding: 14px 40px; border-radius: 8px; font-size: 16px; font-weight: 600; box-shadow: 0 4px 6px rgba(13, 93, 42, 0.3);">
                   Access the System
                 </a>
               </div>
@@ -166,8 +164,7 @@ export async function sendPasswordResetOTP({
   name,
   otpCode,
 }: PasswordResetOTPParams): Promise<{ success: boolean; error?: string }> {
-  const loginUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://sdscermsedu.vercel.app/login'
-  const logoUrl = `${loginUrl}/234.png`
+  const loginUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://sdscermsedu.vercel.app'
 
   const htmlContent = `
 <!DOCTYPE html>
