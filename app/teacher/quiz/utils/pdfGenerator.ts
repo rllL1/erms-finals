@@ -72,19 +72,61 @@ export function generateExamPDF(exam: Exam, action: 'download' | 'print') {
     questionsByType[q.type].push(q)
   })
 
-  // Section labels
-  const sectionLabels: { [key: string]: string } = {
-    'enumeration': 'I. ENUMERATION',
-    'multiple-choice': 'II. MULTIPLE CHOICE',
-    'identification': 'III. IDENTIFICATION',
-    'true-false': 'IV. TRUE OR FALSE',
-    'essay': 'V. ESSAY',
+  // Define the canonical order of exam sections
+  const sectionOrder = [
+    'enumeration',
+    'multiple-choice',
+    'identification',
+    'true-false',
+    'essay',
+  ]
+
+  // Human-readable labels (without numeral — numeral is assigned dynamically)
+  const sectionNames: { [key: string]: string } = {
+    'enumeration': 'ENUMERATION',
+    'multiple-choice': 'MULTIPLE CHOICE',
+    'identification': 'IDENTIFICATION',
+    'true-false': 'TRUE OR FALSE',
+    'essay': 'ESSAY',
+  }
+
+  // Roman numerals helper
+  const romanNumerals = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X']
+
+  // Build ordered list of sections that actually have questions, assigning sequential Roman numerals
+  const orderedSections: { type: string; label: string; questions: ExamQuestion[] }[] = []
+  let sectionIndex = 0
+
+  // First, add sections that appear in the canonical order
+  for (const type of sectionOrder) {
+    if (questionsByType[type] && questionsByType[type].length > 0) {
+      const numeral = romanNumerals[sectionIndex] || `${sectionIndex + 1}`
+      orderedSections.push({
+        type,
+        label: `${numeral}. ${sectionNames[type] || type.toUpperCase()}`,
+        questions: questionsByType[type],
+      })
+      sectionIndex++
+    }
+  }
+
+  // Then, add any remaining types not in the canonical order (future-proof)
+  for (const type of Object.keys(questionsByType)) {
+    if (!sectionOrder.includes(type) && questionsByType[type].length > 0) {
+      const numeral = romanNumerals[sectionIndex] || `${sectionIndex + 1}`
+      orderedSections.push({
+        type,
+        label: `${numeral}. ${type.toUpperCase()}`,
+        questions: questionsByType[type],
+      })
+      sectionIndex++
+    }
   }
 
   let questionNumber = 1
 
-  // Render each section
-  Object.entries(questionsByType).forEach(([type, questions]) => {
+  // Render each section in the correct order
+  orderedSections.forEach(({ type, label, questions }) => {
     // Check if we need a new page
     if (yPosition > 250) {
       doc.addPage()
@@ -94,7 +136,7 @@ export function generateExamPDF(exam: Exam, action: 'download' | 'print') {
     // Section Header
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(11)
-    doc.text(sectionLabels[type] || type.toUpperCase(), 20, yPosition)
+    doc.text(label, 20, yPosition)
     yPosition += 7
 
     doc.setFont('helvetica', 'normal')

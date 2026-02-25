@@ -8,16 +8,13 @@ import {
   Typography,
   Paper,
   TextField,
-  MenuItem,
   Alert,
   Chip,
-  FormControl,
-  InputLabel,
-  Select,
-  OutlinedInput,
   CircularProgress,
+  Card,
+  IconButton,
 } from '@mui/material'
-import { ArrowLeft, Save } from 'lucide-react'
+import { ArrowLeft, Save, Upload, FileText, X, File } from 'lucide-react'
 import NotificationModal, { type ModalSeverity } from '../../components/NotificationModal'
 
 interface Assignment {
@@ -27,35 +24,38 @@ interface Assignment {
   start_date: string | null
   end_date: string | null
   due_date?: string | null
-  allowed_file_types?: string[]
-  max_file_size?: number
+  attachment_url?: string | null
+  attachment_name?: string | null
 }
 
 interface EditAssignmentClientProps {
   assignment: Assignment
 }
 
-const FILE_TYPE_OPTIONS = [
-  '.pdf',
-  '.doc',
-  '.docx',
-  '.txt',
-  '.jpg',
-  '.jpeg',
-  '.png',
-  '.gif',
-  '.zip',
-  '.rar',
-  '.ppt',
-  '.pptx',
-  '.xls',
-  '.xlsx',
+const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx']
+const ALLOWED_MIME_TYPES = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ]
 
 export default function EditAssignmentClient({ assignment: initialAssignment }: EditAssignmentClientProps) {
   const router = useRouter()
   const [assignment, setAssignment] = useState(initialAssignment)
   const [saving, setSaving] = useState(false)
+
+  // File upload state
+  const [uploadedFile, setUploadedFile] = useState<{
+    name: string
+    url: string
+    storagePath: string
+  } | null>(
+    initialAssignment.attachment_url && initialAssignment.attachment_name
+      ? { name: initialAssignment.attachment_name, url: initialAssignment.attachment_url, storagePath: '' }
+      : null
+  )
+  const [uploading, setUploading] = useState(false)
+  const [fileError, setFileError] = useState('')
 
   // Notification modal state
   const [modal, setModal] = useState<{
@@ -76,6 +76,88 @@ export default function EditAssignmentClient({ assignment: initialAssignment }: 
     setModal(prev => ({ ...prev, open: false }))
   }, [])
 
+  const getFileIcon = (fileName: string) => {
+    if (fileName.endsWith('.pdf')) return '📄'
+    if (fileName.endsWith('.doc') || fileName.endsWith('.docx')) return '📝'
+    return '📎'
+  }
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    e.target.value = ''
+    setFileError('')
+
+    const fileName = file.name.toLowerCase()
+    const hasValidExtension = ALLOWED_EXTENSIONS.some(ext => fileName.endsWith(ext))
+    if (!hasValidExtension) {
+      setFileError('Invalid file type. Only PDF (.pdf) and Word documents (.doc, .docx) are allowed.')
+      return
+    }
+
+    if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+      setFileError('Invalid file type. Only PDF and Word documents are allowed.')
+      return
+    }
+
+    if (file.size > 20 * 1024 * 1024) {
+      setFileError('File too large. Maximum size is 20MB.')
+      return
+    }
+
+    if (uploadedFile && uploadedFile.storagePath) {
+      await handleRemoveFile(false)
+    }
+
+    setUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const response = await fetch('/api/teacher/upload-assignment-file', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setUploadedFile({
+          name: data.fileName,
+          url: data.fileUrl,
+          storagePath: data.storagePath,
+        })
+      } else {
+        setFileError(data.error || 'Failed to upload file.')
+      }
+    } catch (error) {
+      console.error('Error uploading file:', error)
+      setFileError('Failed to upload file. Please try again.')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleRemoveFile = async (showFeedback = true) => {
+    if (!uploadedFile) return
+
+    if (uploadedFile.storagePath) {
+      try {
+        await fetch(`/api/teacher/upload-assignment-file?storagePath=${encodeURIComponent(uploadedFile.storagePath)}`, {
+          method: 'DELETE',
+        })
+      } catch (error) {
+        console.error('Error removing file:', error)
+      }
+    }
+
+    setUploadedFile(null)
+    if (showFeedback) {
+      setFileError('')
+    }
+  }
+
   const handleSave = async () => {
     setSaving(true)
     try {
@@ -88,8 +170,8 @@ export default function EditAssignmentClient({ assignment: initialAssignment }: 
           start_date: assignment.start_date,
           end_date: assignment.end_date,
           due_date: assignment.due_date,
-          allowed_file_types: assignment.allowed_file_types,
-          max_file_size: assignment.max_file_size,
+          attachment_url: uploadedFile?.url || null,
+          attachment_name: uploadedFile?.name || null,
         }),
       })
 
@@ -104,7 +186,7 @@ export default function EditAssignmentClient({ assignment: initialAssignment }: 
         },
         autoCloseMs: 3000,
       })
-    } catch (error) {
+    } catch (_error) {
       showModal('error', 'Failed to save assignment. Please try again.')
     } finally {
       setSaving(false)
@@ -152,13 +234,12 @@ export default function EditAssignmentClient({ assignment: initialAssignment }: 
 
         <TextField
           fullWidth
-          label="Description"
+          label="Add Questions Assignment"
           multiline
           rows={6}
           value={assignment.description || ''}
           onChange={(e) => setAssignment({ ...assignment, description: e.target.value })}
           margin="normal"
-          helperText="Provide detailed instructions for the assignment"
         />
 
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr' }, gap: 2, mt: 2 }}>
@@ -186,55 +267,104 @@ export default function EditAssignmentClient({ assignment: initialAssignment }: 
           />
         </Box>
 
-        <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>
-          Submission Settings
+        {/* File Upload Section */}
+        <Typography variant="h6" sx={{ mt: 3, mb: 1 }}>
+          Upload Assignment File
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Upload a PDF or Word document containing assignment questions (optional).
         </Typography>
 
-        <FormControl fullWidth margin="normal">
-          <InputLabel>Allowed File Types</InputLabel>
-          <Select
-            multiple
-            value={assignment.allowed_file_types || []}
-            onChange={(e) => setAssignment({ 
-              ...assignment, 
-              allowed_file_types: typeof e.target.value === 'string' 
-                ? e.target.value.split(',') 
-                : e.target.value 
-            })}
-            input={<OutlinedInput label="Allowed File Types" />}
-            renderValue={(selected) => (
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                {selected.map((value) => (
-                  <Chip key={value} label={value} size="small" />
-                ))}
-              </Box>
-            )}
+        {uploadedFile ? (
+          <Card
+            variant="outlined"
+            sx={{
+              p: 2,
+              mb: 2,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              bgcolor: 'success.50',
+              borderColor: 'success.main',
+            }}
           >
-            {FILE_TYPE_OPTIONS.map((type) => (
-              <MenuItem key={type} value={type}>
-                {type}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, overflow: 'hidden' }}>
+              <FileText size={24} color="#2e7d32" />
+              <Box sx={{ overflow: 'hidden' }}>
+                <Typography variant="body1" fontWeight="medium" noWrap>
+                  {getFileIcon(uploadedFile.name)} {uploadedFile.name}
+                </Typography>
+                <Chip
+                  label="Uploaded"
+                  size="small"
+                  color="success"
+                  sx={{ mt: 0.5 }}
+                />
+              </Box>
+            </Box>
+            <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
+              <Button
+                variant="outlined"
+                size="small"
+                component="label"
+                startIcon={<Upload size={16} />}
+              >
+                Replace
+                <input
+                  type="file"
+                  hidden
+                  accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  onChange={handleFileSelect}
+                />
+              </Button>
+              <IconButton
+                size="small"
+                color="error"
+                onClick={() => handleRemoveFile()}
+                title="Remove file"
+              >
+                <X size={18} />
+              </IconButton>
+            </Box>
+          </Card>
+        ) : (
+          <Box sx={{ mb: 2 }}>
+            <Button
+              variant="outlined"
+              component="label"
+              startIcon={uploading ? <CircularProgress size={18} /> : <Upload size={18} />}
+              disabled={uploading}
+              sx={{
+                p: 2,
+                width: '100%',
+                borderStyle: 'dashed',
+                borderWidth: 2,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 1,
+                minHeight: 100,
+              }}
+            >
+              <File size={28} />
+              <span>{uploading ? 'Uploading...' : 'Click to upload file'}</span>
+              <Typography variant="caption" color="text.secondary">
+                Supported: PDF, DOC, DOCX (Max 20MB)
+              </Typography>
+              <input
+                type="file"
+                hidden
+                accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                onChange={handleFileSelect}
+              />
+            </Button>
+          </Box>
+        )}
 
-        <TextField
-          fullWidth
-          label="Maximum File Size (MB)"
-          type="number"
-          value={assignment.max_file_size ? (assignment.max_file_size / (1024 * 1024)).toFixed(1) : ''}
-          onChange={(e) => setAssignment({ 
-            ...assignment, 
-            max_file_size: parseFloat(e.target.value) * 1024 * 1024 
-          })}
-          margin="normal"
-          inputProps={{ min: 0.1, max: 100, step: 0.1 }}
-          helperText="Maximum file size students can upload (0.1 - 100 MB)"
-        />
-
-        <Alert severity="info" sx={{ mt: 3 }}>
-          Students will submit their work by uploading files. Make sure to set appropriate file types and size limits.
-        </Alert>
+        {fileError && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {fileError}
+          </Alert>
+        )}
       </Paper>
 
       <NotificationModal

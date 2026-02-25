@@ -11,16 +11,10 @@ import {
   IconButton,
   Alert,
   CircularProgress,
+  Chip,
 } from '@mui/material'
-import { ArrowLeft, Delete, Plus } from 'lucide-react'
+import { ArrowLeft, Upload, FileText, X, File } from 'lucide-react'
 import NotificationModal, { type ModalSeverity } from '../components/NotificationModal'
-import ConfirmationModal from '@/app/components/ConfirmationModal'
-import { isDuplicateQuestion } from '../utils/duplicateDetection'
-
-interface Question {
-  id: string
-  question: string
-}
 
 interface Teacher {
   id: string
@@ -28,15 +22,28 @@ interface Teacher {
   email: string
 }
 
+const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx']
+const ALLOWED_MIME_TYPES = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+]
+
 export default function CreateAssignmentClient({ teacher }: { teacher: Teacher }) {
   const router = useRouter()
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [dueDate, setDueDate] = useState('')
-  const [allowedTypes, setAllowedTypes] = useState('.pdf,.doc,.docx')
-  const [maxSize, setMaxSize] = useState('10')
-  const [questions, setQuestions] = useState<Question[]>([])
   const [loading, setLoading] = useState(false)
+
+  // File upload state
+  const [uploadedFile, setUploadedFile] = useState<{
+    name: string
+    url: string
+    storagePath: string
+  } | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [fileError, setFileError] = useState('')
 
   // Notification modal state
   const [modal, setModal] = useState<{
@@ -49,12 +56,6 @@ export default function CreateAssignmentClient({ teacher }: { teacher: Teacher }
     onAction?: () => void
   }>({ open: false, message: '', severity: 'info' })
 
-  // Duplicate warning per question (real-time)
-  const [duplicateWarnings, setDuplicateWarnings] = useState<Record<string, boolean>>({})
-
-  // Delete question confirmation
-  const [questionToDelete, setQuestionToDelete] = useState<string | null>(null)
-
   const showModal = useCallback((severity: ModalSeverity, message: string, opts?: { title?: string; autoCloseMs?: number; actionLabel?: string; onAction?: () => void }) => {
     setModal({ open: true, message, severity, ...opts })
   }, [])
@@ -63,58 +64,95 @@ export default function CreateAssignmentClient({ teacher }: { teacher: Teacher }
     setModal(prev => ({ ...prev, open: false }))
   }, [])
 
-  const handleAddQuestion = () => {
-    const newQuestion: Question = {
-      id: Date.now().toString(),
-      question: '',
+  const getFileIcon = (fileName: string) => {
+    if (fileName.endsWith('.pdf')) return '📄'
+    if (fileName.endsWith('.doc') || fileName.endsWith('.docx')) return '📝'
+    return '📎'
+  }
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Reset input so re-selecting same file triggers change event
+    e.target.value = ''
+    setFileError('')
+
+    // Validate file extension
+    const fileName = file.name.toLowerCase()
+    const hasValidExtension = ALLOWED_EXTENSIONS.some(ext => fileName.endsWith(ext))
+    if (!hasValidExtension) {
+      setFileError('Invalid file type. Only PDF (.pdf) and Word documents (.doc, .docx) are allowed.')
+      return
     }
-    setQuestions([...questions, newQuestion])
+
+    // Validate MIME type
+    if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+      setFileError('Invalid file type. Only PDF and Word documents are allowed.')
+      return
+    }
+
+    // Validate file size (max 20MB)
+    if (file.size > 20 * 1024 * 1024) {
+      setFileError('File too large. Maximum size is 20MB.')
+      return
+    }
+
+    // If a file was already uploaded, remove it first
+    if (uploadedFile) {
+      await handleRemoveFile(false)
+    }
+
+    setUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const response = await fetch('/api/teacher/upload-assignment-file', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setUploadedFile({
+          name: data.fileName,
+          url: data.fileUrl,
+          storagePath: data.storagePath,
+        })
+      } else {
+        setFileError(data.error || 'Failed to upload file.')
+      }
+    } catch (error) {
+      console.error('Error uploading file:', error)
+      setFileError('Failed to upload file. Please try again.')
+    } finally {
+      setUploading(false)
+    }
   }
 
-  const handleDeleteQuestion = (id: string) => {
-    setQuestionToDelete(id)
-  }
+  const handleRemoveFile = async (showFeedback = true) => {
+    if (!uploadedFile) return
 
-  const handleDeleteQuestionConfirm = () => {
-    if (!questionToDelete) return
-    setQuestions(questions.filter(q => q.id !== questionToDelete))
-    setDuplicateWarnings(prev => {
-      const next = { ...prev }
-      delete next[questionToDelete]
-      return next
-    })
-    setQuestionToDelete(null)
-  }
+    try {
+      await fetch(`/api/teacher/upload-assignment-file?storagePath=${encodeURIComponent(uploadedFile.storagePath)}`, {
+        method: 'DELETE',
+      })
+    } catch (error) {
+      console.error('Error removing file:', error)
+    }
 
-  const handleQuestionChange = (id: string, value: string) => {
-    setQuestions(prev => {
-      const updated = prev.map(q =>
-        q.id === id ? { ...q, question: value } : q
-      )
-
-      // Real-time duplicate detection
-      const questionIndex = updated.findIndex(q => q.id === id)
-      const hasDuplicate = isDuplicateQuestion(value, updated, questionIndex)
-      setDuplicateWarnings(prevW => ({ ...prevW, [id]: hasDuplicate }))
-
-      return updated
-    })
+    setUploadedFile(null)
+    if (showFeedback) {
+      setFileError('')
+    }
   }
 
   const handleCreateAssignment = async () => {
     if (!title || !description || !dueDate) {
-      showModal('warning', 'Please fill in all required fields.')
+      showModal('warning', 'Please fill in all required fields (Title, Add Questions Assignment, and Due Date).')
       return
-    }
-
-    // Check for duplicate questions before saving
-    for (let i = 0; i < questions.length; i++) {
-      if (isDuplicateQuestion(questions[i].question, questions, i)) {
-        showModal('duplicate', 'This question already exists. Duplicate questions are not allowed.', {
-          title: 'Duplicate Detected',
-        })
-        return
-      }
     }
 
     setLoading(true)
@@ -127,9 +165,8 @@ export default function CreateAssignmentClient({ teacher }: { teacher: Teacher }
           title,
           description,
           dueDate,
-          allowedFileTypes: allowedTypes.split(',').map(t => t.trim()),
-          maxFileSize: parseInt(maxSize),
-          questions,
+          attachmentUrl: uploadedFile?.url || null,
+          attachmentName: uploadedFile?.name || null,
         }),
       })
 
@@ -180,7 +217,7 @@ export default function CreateAssignmentClient({ teacher }: { teacher: Teacher }
           fullWidth
           multiline
           rows={4}
-          label="Description/Instructions"
+          label="Add Questions Assignment"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           sx={{ mb: 2 }}
@@ -194,77 +231,108 @@ export default function CreateAssignmentClient({ teacher }: { teacher: Teacher }
           value={dueDate}
           onChange={(e) => setDueDate(e.target.value)}
           InputLabelProps={{ shrink: true }}
-          sx={{ mb: 2 }}
+          sx={{ mb: 3 }}
           required
         />
 
-        <TextField
-          fullWidth
-          label="Allowed File Types"
-          value={allowedTypes}
-          onChange={(e) => setAllowedTypes(e.target.value)}
-          placeholder=".pdf,.doc,.docx,.txt"
-          helperText="Comma-separated file extensions"
-          sx={{ mb: 2 }}
-        />
-
-        <TextField
-          fullWidth
-          type="number"
-          label="Max File Size (MB)"
-          value={maxSize}
-          onChange={(e) => setMaxSize(e.target.value)}
-          sx={{ mb: 3 }}
-        />
-
-        <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
-          Assignment Questions (Optional)
+        {/* File Upload Section */}
+        <Typography variant="h6" gutterBottom sx={{ mt: 1 }}>
+          Upload Assignment File
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Add questions or instructions that students should answer or follow
+          Upload a PDF or Word document containing assignment questions (optional).
         </Typography>
 
-        <Button
-          variant="outlined"
-          startIcon={<Plus />}
-          onClick={handleAddQuestion}
-          sx={{ mb: 2 }}
-        >
-          Add Question
-        </Button>
-
-        {questions.map((question, index) => (
-          <Card key={question.id} sx={{ mb: 2, p: 2, bgcolor: 'grey.50' }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-              <Typography variant="subtitle1">
-                Question {index + 1}
-              </Typography>
+        {uploadedFile ? (
+          <Card
+            variant="outlined"
+            sx={{
+              p: 2,
+              mb: 2,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              bgcolor: 'success.50',
+              borderColor: 'success.main',
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, overflow: 'hidden' }}>
+              <FileText size={24} color="#2e7d32" />
+              <Box sx={{ overflow: 'hidden' }}>
+                <Typography variant="body1" fontWeight="medium" noWrap>
+                  {getFileIcon(uploadedFile.name)} {uploadedFile.name}
+                </Typography>
+                <Chip
+                  label="Uploaded"
+                  size="small"
+                  color="success"
+                  sx={{ mt: 0.5 }}
+                />
+              </Box>
+            </Box>
+            <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
+              <Button
+                variant="outlined"
+                size="small"
+                component="label"
+                startIcon={<Upload size={16} />}
+              >
+                Replace
+                <input
+                  type="file"
+                  hidden
+                  accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  onChange={handleFileSelect}
+                />
+              </Button>
               <IconButton
                 size="small"
-                onClick={() => handleDeleteQuestion(question.id)}
+                color="error"
+                onClick={() => handleRemoveFile()}
+                title="Remove file"
               >
-                <Delete />
+                <X size={18} />
               </IconButton>
             </Box>
-
-            <TextField
-              fullWidth
-              multiline
-              rows={3}
-              label="Question"
-              value={question.question}
-              onChange={(e) => handleQuestionChange(question.id, e.target.value)}
-              placeholder="Enter your question or instruction here"
-              error={duplicateWarnings[question.id]}
-              helperText={duplicateWarnings[question.id] ? 'Duplicate question detected — this question already exists.' : ''}
-            />
-            {duplicateWarnings[question.id] && (
-              <Alert severity="error" sx={{ mt: 0.5 }}>
-                This question already exists. Duplicate questions are not allowed.
-              </Alert>
-            )}
           </Card>
-        ))}
+        ) : (
+          <Box sx={{ mb: 2 }}>
+            <Button
+              variant="outlined"
+              component="label"
+              startIcon={uploading ? <CircularProgress size={18} /> : <Upload size={18} />}
+              disabled={uploading}
+              sx={{
+                p: 2,
+                width: '100%',
+                borderStyle: 'dashed',
+                borderWidth: 2,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 1,
+                minHeight: 100,
+              }}
+            >
+              <File size={28} />
+              <span>{uploading ? 'Uploading...' : 'Click to upload file'}</span>
+              <Typography variant="caption" color="text.secondary">
+                Supported: PDF, DOC, DOCX (Max 20MB)
+              </Typography>
+              <input
+                type="file"
+                hidden
+                accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                onChange={handleFileSelect}
+              />
+            </Button>
+          </Box>
+        )}
+
+        {fileError && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {fileError}
+          </Alert>
+        )}
 
         <Box sx={{ display: 'flex', gap: 2, mt: 3 }}>
           <Button
@@ -277,7 +345,7 @@ export default function CreateAssignmentClient({ teacher }: { teacher: Teacher }
           <Button
             onClick={handleCreateAssignment}
             variant="contained"
-            disabled={loading || !title || !description || !dueDate || Object.values(duplicateWarnings).some(Boolean)}
+            disabled={loading || !title || !description || !dueDate}
             fullWidth
           >
             {loading ? <CircularProgress size={24} sx={{ color: 'white' }} /> : 'Create Assignment'}
@@ -285,7 +353,6 @@ export default function CreateAssignmentClient({ teacher }: { teacher: Teacher }
         </Box>
       </Card>
 
-      {/* Notification Modal */}
       {/* Notification Modal */}
       <NotificationModal
         open={modal.open}
@@ -302,16 +369,6 @@ export default function CreateAssignmentClient({ teacher }: { teacher: Teacher }
         autoCloseMs={modal.autoCloseMs}
         actionLabel={modal.actionLabel}
         onAction={modal.onAction}
-      />
-      {/* Delete Question Confirmation */}
-      <ConfirmationModal
-        open={!!questionToDelete}
-        onClose={() => setQuestionToDelete(null)}
-        onConfirm={handleDeleteQuestionConfirm}
-        title="Delete Question"
-        message="Are you sure you want to delete this question? This action cannot be undone."
-        confirmLabel="Delete"
-        variant="danger"
       />
     </Box>
   )

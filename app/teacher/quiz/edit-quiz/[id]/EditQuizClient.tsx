@@ -48,7 +48,21 @@ interface EditQuizClientProps {
 export default function EditQuizClient({ quiz: initialQuiz, questions: initialQuestions }: EditQuizClientProps) {
   const router = useRouter()
   const [quiz, setQuiz] = useState(initialQuiz)
-  const [questions, setQuestions] = useState(initialQuestions)
+  // Normalize options: handle both array and { options: [...] } formats from the DB
+  const [questions, setQuestions] = useState<Question[]>(() =>
+    initialQuestions.map(q => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rawOpts = q.options as any
+      const normalizedOptions: string[] | undefined = Array.isArray(rawOpts)
+        ? rawOpts
+        : rawOpts?.options
+          ? rawOpts.options
+          : q.question_type === 'multiple-choice'
+            ? ['', '', '', '']
+            : undefined
+      return { ...q, options: normalizedOptions }
+    })
+  )
   const [saving, setSaving] = useState(false)
   const [uploadingImageIndex, setUploadingImageIndex] = useState<number | null>(null)
 

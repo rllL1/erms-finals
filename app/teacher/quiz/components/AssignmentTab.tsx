@@ -20,7 +20,6 @@ import {
   DialogContent,
   DialogActions,
   Divider,
-  Alert,
 } from '@mui/material'
 import { Plus, Eye, Edit, Trash2, Users, X, Calendar, FileText } from 'lucide-react'
 import NotificationModal, { type ModalSeverity } from '@/app/components/NotificationModal'
@@ -38,6 +37,8 @@ interface Assignment {
   allowed_file_types?: string[]
   max_file_size?: number
   submission_count?: number
+  attachment_url?: string | null
+  attachment_name?: string | null
   created_at: string
 }
 
@@ -47,7 +48,6 @@ export default function AssignmentTab({ teacherId }: { teacherId: string }) {
   const [assignments, setAssignments] = useState<Assignment[]>([])
   const [loading, setLoading] = useState(true)
   const [viewModalOpen, setViewModalOpen] = useState(false)
-  const [editModalOpen, setEditModalOpen] = useState(false)
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null)
   const [assignmentToDelete, setAssignmentToDelete] = useState<string | null>(null)
@@ -108,8 +108,7 @@ export default function AssignmentTab({ teacherId }: { teacherId: string }) {
   }
 
   const handleEdit = (assignment: Assignment) => {
-    setSelectedAssignment(assignment)
-    setEditModalOpen(true)
+    router.push(`/teacher/quiz/edit-assignment/${assignment.id}`)
   }
 
   const formatDate = (date: string) => {
@@ -140,9 +139,9 @@ export default function AssignmentTab({ teacherId }: { teacherId: string }) {
           <TableHead>
             <TableRow>
               <TableCell><strong>Title</strong></TableCell>
-              <TableCell><strong>Description</strong></TableCell>
+              <TableCell><strong>Add Questions Assignment</strong></TableCell>
               <TableCell><strong>Due Date</strong></TableCell>
-              <TableCell><strong>File Types</strong></TableCell>
+              <TableCell><strong>Attachment</strong></TableCell>
               <TableCell><strong>Submissions</strong></TableCell>
               <TableCell><strong>Created</strong></TableCell>
               <TableCell align="center"><strong>Actions</strong></TableCell>
@@ -168,16 +167,19 @@ export default function AssignmentTab({ teacherId }: { teacherId: string }) {
                   </TableCell>
                   <TableCell>{assignment.due_date ? formatDate(assignment.due_date) : assignment.end_date ? formatDate(assignment.end_date) : '-'}</TableCell>
                   <TableCell>
-                    {Array.isArray(assignment.allowed_file_types) && assignment.allowed_file_types.slice(0, 2).map((type, idx) => (
-                      <Chip 
-                        key={idx}
-                        label={type} 
-                        size="small" 
-                        sx={{ mr: 0.5, mb: 0.5 }}
+                    {assignment.attachment_name ? (
+                      <Chip
+                        icon={<FileText size={14} />}
+                        label={assignment.attachment_name.length > 20 ? assignment.attachment_name.substring(0, 20) + '...' : assignment.attachment_name}
+                        size="small"
+                        color="info"
+                        component="a"
+                        href={assignment.attachment_url || '#'}
+                        target="_blank"
+                        clickable
                       />
-                    ))}
-                    {Array.isArray(assignment.allowed_file_types) && assignment.allowed_file_types.length > 2 && (
-                      <Chip label={`+${assignment.allowed_file_types.length - 2}`} size="small" />
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">—</Typography>
                     )}
                   </TableCell>
                   <TableCell>
@@ -249,9 +251,33 @@ export default function AssignmentTab({ teacherId }: { teacherId: string }) {
               </Box>
 
               {selectedAssignment.description && (
-                <Typography variant="body1" paragraph sx={{ whiteSpace: 'pre-wrap' }}>
-                  {selectedAssignment.description}
-                </Typography>
+                <>
+                  <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                    Add Questions Assignment
+                  </Typography>
+                  <Typography variant="body1" paragraph sx={{ whiteSpace: 'pre-wrap' }}>
+                    {selectedAssignment.description}
+                  </Typography>
+                </>
+              )}
+
+              {/* Attachment Section */}
+              {selectedAssignment.attachment_name && selectedAssignment.attachment_url && (
+                <Box sx={{ mb: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+                  <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                    Attached File
+                  </Typography>
+                  <Chip
+                    icon={<FileText size={16} />}
+                    label={selectedAssignment.attachment_name}
+                    color="info"
+                    component="a"
+                    href={selectedAssignment.attachment_url}
+                    target="_blank"
+                    clickable
+                    sx={{ maxWidth: '100%' }}
+                  />
+                </Box>
               )}
 
               <Divider sx={{ my: 2 }} />
@@ -304,68 +330,12 @@ export default function AssignmentTab({ teacherId }: { teacherId: string }) {
                     {selectedAssignment.due_date ? formatDate(selectedAssignment.due_date) : 'Not set'}
                   </Typography>
                 </Box>
-
-                {selectedAssignment.max_file_size && (
-                  <Box>
-                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                      Maximum File Size
-                    </Typography>
-                    <Typography variant="body1">
-                      {(selectedAssignment.max_file_size / (1024 * 1024)).toFixed(1)} MB
-                    </Typography>
-                  </Box>
-                )}
               </Box>
-
-              {selectedAssignment.allowed_file_types && selectedAssignment.allowed_file_types.length > 0 && (
-                <>
-                  <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                    Allowed File Types
-                  </Typography>
-                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
-                    {selectedAssignment.allowed_file_types.map((type, index) => (
-                      <Chip key={index} label={type} variant="outlined" size="small" />
-                    ))}
-                  </Box>
-                </>
-              )}
-
-              <Alert severity="info" sx={{ mt: 2 }}>
-                Students must submit files in one of the allowed formats before the due date.
-              </Alert>
             </Box>
           )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setViewModalOpen(false)}>Close</Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Edit Modal */}
-      <Dialog 
-        open={editModalOpen} 
-        onClose={() => setEditModalOpen(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>Edit Assignment</DialogTitle>
-        <DialogContent dividers>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Click the button below to open the full assignment editor.
-          </Typography>
-          <Button
-            fullWidth
-            variant="contained"
-            onClick={() => {
-              setEditModalOpen(false)
-              router.push(`/teacher/quiz/edit-assignment/${selectedAssignment?.id}`)
-            }}
-          >
-            Open Assignment Editor
-          </Button>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEditModalOpen(false)}>Cancel</Button>
         </DialogActions>
       </Dialog>
 

@@ -78,17 +78,27 @@ export async function PUT(
     const supabase = await createClient()
 
     // Update the assignment
+    const updateData: Record<string, unknown> = {
+      title: body.title,
+      description: body.description,
+      start_date: body.start_date,
+      end_date: body.end_date,
+      due_date: body.due_date,
+      allowed_file_types: body.allowed_file_types,
+      max_file_size: body.max_file_size,
+    }
+
+    // Include attachment fields if provided
+    if (body.attachment_url !== undefined) {
+      updateData.attachment_url = body.attachment_url
+    }
+    if (body.attachment_name !== undefined) {
+      updateData.attachment_name = body.attachment_name
+    }
+
     const { error } = await supabase
       .from('quizzes')
-      .update({
-        title: body.title,
-        description: body.description,
-        start_date: body.start_date,
-        end_date: body.end_date,
-        due_date: body.due_date,
-        allowed_file_types: body.allowed_file_types,
-        max_file_size: body.max_file_size,
-      })
+      .update(updateData)
       .eq('id', assignmentId)
 
     if (error) {

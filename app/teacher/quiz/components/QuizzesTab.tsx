@@ -62,7 +62,6 @@ export default function QuizzesTab({ teacherId }: { teacherId: string }) {
   const [quizzes, setQuizzes] = useState<Quiz[]>([])
   const [loading, setLoading] = useState(true)
   const [viewModalOpen, setViewModalOpen] = useState(false)
-  const [editModalOpen, setEditModalOpen] = useState(false)
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [selectedQuiz, setSelectedQuiz] = useState<QuizDetails | null>(null)
   const [quizToDelete, setQuizToDelete] = useState<string | null>(null)
@@ -143,8 +142,7 @@ export default function QuizzesTab({ teacherId }: { teacherId: string }) {
   }
 
   const handleEdit = (quiz: Quiz) => {
-    setSelectedQuiz(quiz)
-    setEditModalOpen(true)
+    router.push(`/teacher/quiz/edit-quiz/${quiz.id}`)
   }
 
   const formatDate = (date: string) => {
@@ -399,34 +397,6 @@ export default function QuizzesTab({ teacherId }: { teacherId: string }) {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setViewModalOpen(false)}>Close</Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Edit Modal */}
-      <Dialog 
-        open={editModalOpen} 
-        onClose={() => setEditModalOpen(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>Edit Quiz</DialogTitle>
-        <DialogContent dividers>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Click the button below to open the full quiz editor.
-          </Typography>
-          <Button
-            fullWidth
-            variant="contained"
-            onClick={() => {
-              setEditModalOpen(false)
-              router.push(`/teacher/quiz/edit-quiz/${selectedQuiz?.id}`)
-            }}
-          >
-            Open Quiz Editor
-          </Button>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEditModalOpen(false)}>Cancel</Button>
         </DialogActions>
       </Dialog>
 

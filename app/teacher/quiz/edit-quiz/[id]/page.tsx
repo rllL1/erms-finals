@@ -12,23 +12,25 @@ export default async function EditQuizPage({ params }: { params: Promise<{ id: s
     redirect('/login')
   }
 
-  // Fetch user profile to check role
+  // Fetch user profile and teacher record
   const { data: profile } = await supabase
     .from('profiles')
-    .select('*')
+    .select('*, teachers(*)')
     .eq('id', user.id)
     .single()
 
-  if (profile?.role !== 'teacher') {
+  if (profile?.role !== 'teacher' || !profile.teachers || profile.teachers.length === 0) {
     redirect('/login')
   }
+
+  const teacherId = profile.teachers[0].id
 
   // Fetch quiz details
   const { data: quiz } = await supabase
     .from('quizzes')
     .select('*')
     .eq('id', id)
-    .eq('teacher_id', user.id)
+    .eq('teacher_id', teacherId)
     .single()
 
   if (!quiz) {

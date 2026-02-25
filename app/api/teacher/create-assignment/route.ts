@@ -1,16 +1,12 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
-interface AssignmentQuestion {
-  question: string
-}
-
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { teacherId, title, description, dueDate, allowedFileTypes, maxFileSize, questions } = body
+    const { teacherId, title, description, dueDate, attachmentUrl, attachmentName } = body
 
-    console.log('Received assignment creation request:', { teacherId, title, dueDate, questionsCount: questions?.length })
+    console.log('Received assignment creation request:', { teacherId, title, dueDate, hasAttachment: !!attachmentUrl })
 
     if (!teacherId || !title || !description) {
       return NextResponse.json(
@@ -44,11 +40,14 @@ export async function POST(request: Request) {
       .insert({
         teacher_id: teacherId,
         title,
+        description,
         type: 'assignment',
         quiz_type: null,
         start_date: null,
         end_date: dueDate || null,
         show_answer_key: false,
+        attachment_url: attachmentUrl || null,
+        attachment_name: attachmentName || null,
       })
       .select()
       .single()
@@ -59,30 +58,6 @@ export async function POST(request: Request) {
     }
 
     console.log('Assignment created:', assignment.id)
-
-    // Insert questions if provided
-    if (questions && questions.length > 0) {
-      const questionsToInsert = questions.map((q: AssignmentQuestion, index: number) => ({
-        quiz_id: assignment.id,
-        question_type: 'identification',
-        question: q.question,
-        options: null,
-        correct_answer: '',
-        order_number: index + 1,
-      }))
-
-      const { error: questionsError } = await supabase
-        .from('quiz_questions')
-        .insert(questionsToInsert)
-
-      if (questionsError) {
-        console.error('Error creating questions:', questionsError)
-        // Don't rollback assignment if questions fail, just log error
-        console.warn('Assignment created but questions failed to save')
-      } else {
-        console.log('Questions inserted:', questionsToInsert.length)
-      }
-    }
 
     return NextResponse.json({
       success: true,
