@@ -26,9 +26,12 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
+  Tooltip,
+  IconButton,
 } from '@mui/material'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
-import { ArrowLeft, Eye, CheckCircle, XCircle, Edit } from 'lucide-react'
+import { ArrowLeft, Eye, CheckCircle, XCircle, Edit, Download, FileText } from 'lucide-react'
+import NotificationModal, { type ModalSeverity } from '@/app/components/NotificationModal'
 
 interface Teacher {
   id: string
@@ -54,7 +57,10 @@ interface Submission {
   is_graded: boolean
   auto_graded: boolean
   status: string
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   quiz_answers: any
+  assignment_response?: string
+  assignment_file_url?: string
   feedback?: string | null
   students?: {
     id: string
@@ -77,18 +83,27 @@ export default function MaterialSubmissionsClient({
   const [submissions, setSubmissions] = useState<Submission[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
   const [mounted, setMounted] = useState(false)
+
+  // Notification modal
+  const [notification, setNotification] = useState<{ open: boolean; severity: ModalSeverity; message: string; title?: string }>({
+    open: false, severity: 'success', message: '', title: undefined
+  })
   
   const [viewDialog, setViewDialog] = useState(false)
   const [gradeDialog, setGradeDialog] = useState(false)
+  const [previewDialog, setPreviewDialog] = useState(false)
+  const [previewUrl, setPreviewUrl] = useState('')
+  const [previewFileName, setPreviewFileName] = useState('')
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null)
-  const [gradeForm, setGradeForm] = useState({ score: '', feedback: '' })
+  const [gradeForm, setGradeForm] = useState({ score: '', max_score: '', feedback: '' })
+  const [gradeErrors, setGradeErrors] = useState({ score: '', max_score: '' })
 
   useEffect(() => {
     setMounted(true)
     fetchMaterial()
     fetchSubmissions()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [materialId])
 
   const fetchMaterial = async () => {
@@ -100,8 +115,8 @@ export default function MaterialSubmissionsClient({
         const found = data.materials?.find((m: Material) => m.id === materialId)
         if (found) setMaterial(found)
       }
-    } catch (err) {
-      console.error('Error fetching material:', err)
+    } catch (_err) {
+      console.error('Error fetching material:', _err)
     }
   }
 
@@ -134,13 +149,54 @@ export default function MaterialSubmissionsClient({
     setSelectedSubmission(submission)
     setGradeForm({
       score: submission.score?.toString() || '',
-      feedback: '',
+      max_score: submission.max_score?.toString() || '100',
+      feedback: submission.feedback || '',
     })
+    setGradeErrors({ score: '', max_score: '' })
     setGradeDialog(true)
+  }
+
+  const validateGradeForm = (): boolean => {
+    const errors = { score: '', max_score: '' }
+    let isValid = true
+
+    // Score validation
+    if (!gradeForm.score.trim()) {
+      errors.score = 'Score is required'
+      isValid = false
+    } else if (isNaN(Number(gradeForm.score))) {
+      errors.score = 'Score must be a number'
+      isValid = false
+    } else if (Number(gradeForm.score) < 0) {
+      errors.score = 'Score cannot be negative'
+      isValid = false
+    }
+
+    // Max Score validation
+    if (!gradeForm.max_score.trim()) {
+      errors.max_score = 'Max score is required'
+      isValid = false
+    } else if (isNaN(Number(gradeForm.max_score))) {
+      errors.max_score = 'Max score must be a number'
+      isValid = false
+    } else if (Number(gradeForm.max_score) <= 0) {
+      errors.max_score = 'Max score must be greater than 0'
+      isValid = false
+    }
+
+    // Score cannot exceed max score
+    if (isValid && Number(gradeForm.score) > Number(gradeForm.max_score)) {
+      errors.score = 'Score cannot exceed max score'
+      isValid = false
+    }
+
+    setGradeErrors(errors)
+    return isValid
   }
 
   const submitGrade = async () => {
     if (!selectedSubmission) return
+    if (!validateGradeForm()) return
 
     try {
       const response = await fetch(
@@ -151,7 +207,7 @@ export default function MaterialSubmissionsClient({
           body: JSON.stringify({
             submission_id: selectedSubmission.id,
             score: parseFloat(gradeForm.score),
-            max_score: selectedSubmission.max_score,
+            max_score: parseFloat(gradeForm.max_score),
             teacher_id: teacher.id,
             feedback: gradeForm.feedback.trim() || null,
           }),
@@ -159,16 +215,49 @@ export default function MaterialSubmissionsClient({
       )
 
       if (response.ok) {
-        setSuccess('Grade submitted successfully')
         setGradeDialog(false)
+        setNotification({
+          open: true,
+          severity: 'success',
+          title: 'Score Updated',
+          message: 'Student score successfully updated.',
+        })
         fetchSubmissions()
       } else {
         const data = await response.json()
-        setError(data.error || 'Failed to submit grade')
+        setNotification({
+          open: true,
+          severity: 'error',
+          message: data.error || 'Failed to submit grade',
+        })
       }
-    } catch (err) {
-      setError('An error occurred')
+    } catch (_err) {
+      setNotification({
+        open: true,
+        severity: 'error',
+        message: 'An error occurred while submitting the grade',
+      })
     }
+  }
+
+  const handlePreviewFile = (url: string, fileName: string) => {
+    setPreviewUrl(url)
+    setPreviewFileName(fileName)
+    setPreviewDialog(true)
+  }
+
+  const getFileNameFromUrl = (url: string) => {
+    try {
+      const path = new URL(url).pathname
+      const parts = path.split('/')
+      return parts[parts.length - 1] || 'file'
+    } catch {
+      return 'file'
+    }
+  }
+
+  const isPdf = (url: string) => {
+    return url?.toLowerCase().includes('.pdf')
   }
 
   const getScoreColor = (score: number | null, maxScore: number) => {
@@ -180,7 +269,6 @@ export default function MaterialSubmissionsClient({
     return 'error'
   }
 
-  // Compute correct/wrong counts from quiz_answers for a submission
   const getAnswerStats = (submission: Submission) => {
     const answers = submission.quiz_answers?.answers
     if (!Array.isArray(answers)) return { correct: 0, wrong: 0, pending: 0, total: 0 }
@@ -195,7 +283,6 @@ export default function MaterialSubmissionsClient({
     return { correct, wrong, pending, total: answers.length }
   }
 
-  // Compute class-wide summary stats
   const summaryStats = (() => {
     if (submissions.length === 0) return null
     const totalStudents = submissions.length
@@ -214,7 +301,6 @@ export default function MaterialSubmissionsClient({
     const lowestScore = scoredSubmissions.length > 0
       ? Math.min(...scoredSubmissions.map((s) => s.score || 0))
       : 0
-    const maxMaxScore = scoredSubmissions.length > 0 ? scoredSubmissions[0]?.max_score || 0 : 0
 
     let totalCorrect = 0
     let totalWrong = 0
@@ -234,12 +320,13 @@ export default function MaterialSubmissionsClient({
       avgMax,
       highestScore,
       lowestScore,
-      maxMaxScore,
       totalCorrect,
       totalWrong,
       totalPendingAnswers,
     }
   })()
+
+  const isAssignment = material?.material_type === 'assignment'
 
   if (!mounted) {
     return null
@@ -266,12 +353,6 @@ export default function MaterialSubmissionsClient({
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
           {error}
-        </Alert>
-      )}
-
-      {success && (
-        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>
-          {success}
         </Alert>
       )}
 
@@ -326,19 +407,23 @@ export default function MaterialSubmissionsClient({
                 </Typography>
                 <Typography variant="caption" color="text.secondary">Highest / Lowest</Typography>
               </Box>
-              <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: 'success.50', borderRadius: 1 }}>
-                <Typography variant="h5" color="success.main">{summaryStats.totalCorrect}</Typography>
-                <Typography variant="caption" color="text.secondary">Total Correct</Typography>
-              </Box>
-              <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: 'error.50', borderRadius: 1 }}>
-                <Typography variant="h5" color="error.main">{summaryStats.totalWrong}</Typography>
-                <Typography variant="caption" color="text.secondary">Total Wrong</Typography>
-              </Box>
-              {summaryStats.totalPendingAnswers > 0 && (
-                <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: 'warning.50', borderRadius: 1 }}>
-                  <Typography variant="h5" color="warning.main">{summaryStats.totalPendingAnswers}</Typography>
-                  <Typography variant="caption" color="text.secondary">Pending Grading</Typography>
-                </Box>
+              {!isAssignment && (
+                <>
+                  <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: 'success.50', borderRadius: 1 }}>
+                    <Typography variant="h5" color="success.main">{summaryStats.totalCorrect}</Typography>
+                    <Typography variant="caption" color="text.secondary">Total Correct</Typography>
+                  </Box>
+                  <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: 'error.50', borderRadius: 1 }}>
+                    <Typography variant="h5" color="error.main">{summaryStats.totalWrong}</Typography>
+                    <Typography variant="caption" color="text.secondary">Total Wrong</Typography>
+                  </Box>
+                  {summaryStats.totalPendingAnswers > 0 && (
+                    <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: 'warning.50', borderRadius: 1 }}>
+                      <Typography variant="h5" color="warning.main">{summaryStats.totalPendingAnswers}</Typography>
+                      <Typography variant="caption" color="text.secondary">Pending Grading</Typography>
+                    </Box>
+                  )}
+                </>
               )}
             </Box>
           </CardContent>
@@ -359,9 +444,11 @@ export default function MaterialSubmissionsClient({
             <TableHead>
               <TableRow>
                 <TableCell>Student Name</TableCell>
-                <TableCell>Total Score</TableCell>
-                <TableCell>Correct</TableCell>
-                <TableCell>Wrong</TableCell>
+                {isAssignment && <TableCell>Uploaded File</TableCell>}
+                <TableCell>Submission Date</TableCell>
+                <TableCell>Score Status</TableCell>
+                {!isAssignment && <TableCell>Correct</TableCell>}
+                {!isAssignment && <TableCell>Wrong</TableCell>}
                 <TableCell>Status</TableCell>
                 <TableCell>Feedback</TableCell>
                 <TableCell align="right">Actions</TableCell>
@@ -370,9 +457,38 @@ export default function MaterialSubmissionsClient({
             <TableBody>
               {submissions.map((submission) => {
                 const stats = getAnswerStats(submission)
+                const fileName = submission.assignment_file_url
+                  ? getFileNameFromUrl(submission.assignment_file_url)
+                  : null
                 return (
                 <TableRow key={submission.id}>
-                  <TableCell>{submission.students?.student_name || 'N/A'}</TableCell>
+                  <TableCell>
+                    <Typography variant="body2" fontWeight="medium">
+                      {submission.students?.student_name || 'N/A'}
+                    </Typography>
+                  </TableCell>
+                  {isAssignment && (
+                    <TableCell>
+                      {submission.assignment_file_url ? (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <FileText size={16} />
+                          <Typography variant="body2" noWrap sx={{ maxWidth: 150 }}>
+                            {fileName}
+                          </Typography>
+                        </Box>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">Text only</Typography>
+                      )}
+                    </TableCell>
+                  )}
+                  <TableCell>
+                    <Typography variant="body2">
+                      {new Date(submission.submitted_at).toLocaleDateString('en-US', {
+                        month: 'short', day: 'numeric', year: 'numeric',
+                        hour: '2-digit', minute: '2-digit'
+                      })}
+                    </Typography>
+                  </TableCell>
                   <TableCell>
                     {submission.score !== null ? (
                       <Chip
@@ -384,12 +500,16 @@ export default function MaterialSubmissionsClient({
                       <Chip label="Not Graded" size="small" />
                     )}
                   </TableCell>
-                  <TableCell>
-                    <Chip label={stats.correct} color="success" size="small" variant="outlined" />
-                  </TableCell>
-                  <TableCell>
-                    <Chip label={stats.wrong} color="error" size="small" variant="outlined" />
-                  </TableCell>
+                  {!isAssignment && (
+                    <TableCell>
+                      <Chip label={stats.correct} color="success" size="small" variant="outlined" />
+                    </TableCell>
+                  )}
+                  {!isAssignment && (
+                    <TableCell>
+                      <Chip label={stats.wrong} color="error" size="small" variant="outlined" />
+                    </TableCell>
+                  )}
                   <TableCell>
                     {submission.is_graded ? (
                       <Chip
@@ -412,15 +532,46 @@ export default function MaterialSubmissionsClient({
                     )}
                   </TableCell>
                   <TableCell align="right">
-                    <Button
-                      size="small"
-                      startIcon={<Eye size={16} />}
-                      onClick={() => handleViewSubmission(submission)}
-                      sx={{ mr: 1 }}
-                    >
-                      View
-                    </Button>
-                    {!submission.auto_graded && (
+                    <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end', flexWrap: 'nowrap' }}>
+                      <Tooltip title="View Submission">
+                        <IconButton
+                          size="small"
+                          onClick={() => handleViewSubmission(submission)}
+                          color="primary"
+                        >
+                          <Eye size={18} />
+                        </IconButton>
+                      </Tooltip>
+                      {isAssignment && submission.assignment_file_url && (
+                        <>
+                          {isPdf(submission.assignment_file_url) && (
+                            <Tooltip title="Preview PDF">
+                              <IconButton
+                                size="small"
+                                onClick={() => handlePreviewFile(
+                                  submission.assignment_file_url!,
+                                  submission.students?.student_name || 'Student'
+                                )}
+                                sx={{ color: 'rgb(147, 51, 234)' }}
+                              >
+                                <FileText size={18} />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                          <Tooltip title="Download File">
+                            <IconButton
+                              size="small"
+                              component="a"
+                              href={submission.assignment_file_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              color="info"
+                            >
+                              <Download size={18} />
+                            </IconButton>
+                          </Tooltip>
+                        </>
+                      )}
                       <Button
                         size="small"
                         variant="contained"
@@ -429,11 +580,12 @@ export default function MaterialSubmissionsClient({
                         sx={{
                           bgcolor: 'rgb(147, 51, 234)',
                           '&:hover': { bgcolor: 'rgb(126, 34, 206)' },
+                          ml: 0.5,
                         }}
                       >
                         Grade
                       </Button>
-                    )}
+                    </Box>
                   </TableCell>
                 </TableRow>
                 )
@@ -454,8 +606,63 @@ export default function MaterialSubmissionsClient({
           Submission Details - {selectedSubmission?.students?.student_name}
         </DialogTitle>
         <DialogContent>
-          {selectedSubmission?.quiz_answers?.answers && (
+          {/* Show assignment response text */}
+          {isAssignment && selectedSubmission?.assignment_response && (
             <Box sx={{ mt: 2 }}>
+              <Typography variant="subtitle2" gutterBottom>Student&apos;s Written Response:</Typography>
+              <Paper sx={{ p: 2, bgcolor: 'grey.50', whiteSpace: 'pre-wrap' }}>
+                <Typography variant="body2">{selectedSubmission.assignment_response}</Typography>
+              </Paper>
+            </Box>
+          )}
+
+          {/* Show uploaded file for assignments */}
+          {isAssignment && selectedSubmission?.assignment_file_url && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="subtitle2" gutterBottom>Uploaded Answer File:</Typography>
+              <Card variant="outlined" sx={{ p: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+                  <FileText size={24} />
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography variant="body2" noWrap>
+                      {getFileNameFromUrl(selectedSubmission.assignment_file_url)}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    {isPdf(selectedSubmission.assignment_file_url) && (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<Eye size={16} />}
+                        onClick={() => handlePreviewFile(
+                          selectedSubmission.assignment_file_url!,
+                          selectedSubmission.students?.student_name || 'Student'
+                        )}
+                      >
+                        Preview
+                      </Button>
+                    )}
+                    <Button
+                      size="small"
+                      variant="contained"
+                      startIcon={<Download size={16} />}
+                      component="a"
+                      href={selectedSubmission.assignment_file_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Download
+                    </Button>
+                  </Box>
+                </Box>
+              </Card>
+            </Box>
+          )}
+
+          {/* Show quiz answers */}
+          {!isAssignment && selectedSubmission?.quiz_answers?.answers && (
+            <Box sx={{ mt: 2 }}>
+              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
               {selectedSubmission.quiz_answers.answers.map((answer: any, index: number) => (
                 <Accordion key={index}>
                   <AccordionSummary expandIcon={<ExpandMoreIcon />}>
@@ -532,6 +739,13 @@ export default function MaterialSubmissionsClient({
               ))}
             </Box>
           )}
+
+          {/* No content fallback */}
+          {isAssignment && !selectedSubmission?.assignment_response && !selectedSubmission?.assignment_file_url && (
+            <Box sx={{ mt: 2, textAlign: 'center', py: 4 }}>
+              <Typography color="text.secondary">No submission content available</Typography>
+            </Box>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setViewDialog(false)}>Close</Button>
@@ -545,7 +759,14 @@ export default function MaterialSubmissionsClient({
         maxWidth="sm"
         fullWidth
       >
-        <DialogTitle>Grade Submission</DialogTitle>
+        <DialogTitle>
+          Grade Submission
+          {selectedSubmission?.students?.student_name && (
+            <Typography variant="body2" color="text.secondary">
+              Student: {selectedSubmission.students.student_name}
+            </Typography>
+          )}
+        </DialogTitle>
         <DialogContent>
           <Box sx={{ mt: 2 }}>
             <TextField
@@ -553,9 +774,30 @@ export default function MaterialSubmissionsClient({
               type="number"
               fullWidth
               value={gradeForm.score}
-              onChange={(e) => setGradeForm({ ...gradeForm, score: e.target.value })}
-              helperText={`Out of ${selectedSubmission?.max_score}`}
+              onChange={(e) => {
+                setGradeForm({ ...gradeForm, score: e.target.value })
+                if (gradeErrors.score) setGradeErrors({ ...gradeErrors, score: '' })
+              }}
+              error={!!gradeErrors.score}
+              helperText={gradeErrors.score || 'Enter the student\'s score'}
               sx={{ mb: 2 }}
+              inputProps={{ min: 0, step: 'any' }}
+              required
+            />
+            <TextField
+              label="Max Score"
+              type="number"
+              fullWidth
+              value={gradeForm.max_score}
+              onChange={(e) => {
+                setGradeForm({ ...gradeForm, max_score: e.target.value })
+                if (gradeErrors.max_score) setGradeErrors({ ...gradeErrors, max_score: '' })
+              }}
+              error={!!gradeErrors.max_score}
+              helperText={gradeErrors.max_score || 'Maximum possible score'}
+              sx={{ mb: 2 }}
+              inputProps={{ min: 1, step: 'any' }}
+              required
             />
             <TextField
               label="Feedback (Optional)"
@@ -572,6 +814,7 @@ export default function MaterialSubmissionsClient({
           <Button
             variant="contained"
             onClick={submitGrade}
+            disabled={!gradeForm.score.trim() || !gradeForm.max_score.trim()}
             sx={{
               bgcolor: 'rgb(147, 51, 234)',
               '&:hover': { bgcolor: 'rgb(126, 34, 206)' },
@@ -581,6 +824,46 @@ export default function MaterialSubmissionsClient({
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* PDF Preview Dialog */}
+      <Dialog
+        open={previewDialog}
+        onClose={() => setPreviewDialog(false)}
+        maxWidth="lg"
+        fullWidth
+      >
+        <DialogTitle>
+          Preview - {previewFileName}
+        </DialogTitle>
+        <DialogContent sx={{ p: 0, height: '75vh' }}>
+          <iframe
+            src={previewUrl}
+            style={{ width: '100%', height: '100%', border: 'none' }}
+            title="PDF Preview"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button
+            component="a"
+            href={previewUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            startIcon={<Download size={16} />}
+          >
+            Download
+          </Button>
+          <Button onClick={() => setPreviewDialog(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Notification Modal */}
+      <NotificationModal
+        open={notification.open}
+        onClose={() => setNotification(prev => ({ ...prev, open: false }))}
+        title={notification.title}
+        message={notification.message}
+        severity={notification.severity}
+      />
     </Box>
   )
 }

@@ -314,25 +314,24 @@ export default function StudentHeader({ name, open, onMenuClick, isMobile: isMob
               </div>
             )}
             
-            {materials.length > 0 && (
-              <>
-                <Divider />
-                <MenuItem
-                  component={Link}
-                  href="/student/class"
-                  onClick={handleNotifClose}
-                  sx={{ 
-                    justifyContent: 'center',
-                    py: 1.5,
-                    color: '#16a34a',
-                    fontWeight: 500,
-                    fontSize: { xs: '0.85rem', sm: '0.9rem' }
-                  }}
-                >
-                  View All Classes
-                </MenuItem>
-              </>
-            )}
+            {materials.length > 0 && [
+              <Divider key="view-all-divider" />,
+              <MenuItem
+                key="view-all-link"
+                component={Link}
+                href="/student/class"
+                onClick={handleNotifClose}
+                sx={{ 
+                  justifyContent: 'center',
+                  py: 1.5,
+                  color: '#16a34a',
+                  fontWeight: 500,
+                  fontSize: { xs: '0.85rem', sm: '0.9rem' }
+                }}
+              >
+                View All Classes
+              </MenuItem>,
+            ]}
           </Menu>
         </div>
       </Toolbar>

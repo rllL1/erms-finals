@@ -31,9 +31,7 @@ const ALLOWED_MIME_TYPES = [
 
 export default function CreateAssignmentClient({ teacher }: { teacher: Teacher }) {
   const router = useRouter()
-  const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [dueDate, setDueDate] = useState('')
   const [loading, setLoading] = useState(false)
 
   // File upload state
@@ -150,21 +148,25 @@ export default function CreateAssignmentClient({ teacher }: { teacher: Teacher }
   }
 
   const handleCreateAssignment = async () => {
-    if (!title || !description || !dueDate) {
-      showModal('warning', 'Please fill in all required fields (Title, Add Questions Assignment, and Due Date).')
+    if (!description && !uploadedFile) {
+      showModal('warning', 'Please provide assignment questions text or upload a questions file (PDF/Word).')
       return
     }
 
     setLoading(true)
     try {
+      const title = uploadedFile
+        ? uploadedFile.name.replace(/\.[^/.]+$/, '')
+        : (description.substring(0, 60) + (description.length > 60 ? '...' : ''))
+
       const response = await fetch('/api/teacher/create-assignment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           teacherId: teacher.id,
           title,
-          description,
-          dueDate,
+          description: description || 'See attached file for assignment questions.',
+          dueDate: null,
           attachmentUrl: uploadedFile?.url || null,
           attachmentName: uploadedFile?.name || null,
         }),
@@ -204,43 +206,12 @@ export default function CreateAssignmentClient({ teacher }: { teacher: Teacher }
       </Box>
 
       <Card sx={{ p: 3 }}>
-        <TextField
-          fullWidth
-          label="Assignment Title"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          sx={{ mb: 2 }}
-          required
-        />
-
-        <TextField
-          fullWidth
-          multiline
-          rows={4}
-          label="Add Questions Assignment"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          sx={{ mb: 2 }}
-          required
-        />
-
-        <TextField
-          fullWidth
-          type="datetime-local"
-          label="Due Date"
-          value={dueDate}
-          onChange={(e) => setDueDate(e.target.value)}
-          InputLabelProps={{ shrink: true }}
-          sx={{ mb: 3 }}
-          required
-        />
-
-        {/* File Upload Section */}
-        <Typography variant="h6" gutterBottom sx={{ mt: 1 }}>
-          Upload Assignment File
+        {/* Upload Questions File Section */}
+        <Typography variant="h6" gutterBottom>
+          Upload Questions File
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Upload a PDF or Word document containing assignment questions (optional).
+          Upload a PDF or Word document containing assignment questions.
         </Typography>
 
         {uploadedFile ? (
@@ -248,12 +219,12 @@ export default function CreateAssignmentClient({ teacher }: { teacher: Teacher }
             variant="outlined"
             sx={{
               p: 2,
-              mb: 2,
+              mb: 3,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              bgcolor: 'success.50',
-              borderColor: 'success.main',
+              bgcolor: '#f0fdf4',
+              borderColor: '#16a34a',
             }}
           >
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, overflow: 'hidden' }}>
@@ -296,7 +267,7 @@ export default function CreateAssignmentClient({ teacher }: { teacher: Teacher }
             </Box>
           </Card>
         ) : (
-          <Box sx={{ mb: 2 }}>
+          <Box sx={{ mb: 3 }}>
             <Button
               variant="outlined"
               component="label"
@@ -314,9 +285,9 @@ export default function CreateAssignmentClient({ teacher }: { teacher: Teacher }
               }}
             >
               <File size={28} />
-              <span>{uploading ? 'Uploading...' : 'Click to upload file'}</span>
+              <span>{uploading ? 'Uploading...' : 'Click to upload questions file'}</span>
               <Typography variant="caption" color="text.secondary">
-                Supported: PDF, DOC, DOCX (Max 20MB)
+                Accepted: PDF (.pdf), Word (.doc, .docx) — Max 20MB
               </Typography>
               <input
                 type="file"
@@ -334,7 +305,19 @@ export default function CreateAssignmentClient({ teacher }: { teacher: Teacher }
           </Alert>
         )}
 
-        <Box sx={{ display: 'flex', gap: 2, mt: 3 }}>
+        {/* Optional description / additional instructions */}
+        <TextField
+          fullWidth
+          multiline
+          rows={4}
+          label="Assignment Questions / Instructions (Optional if file uploaded)"
+          placeholder="Type assignment questions or additional instructions here..."
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          sx={{ mb: 3 }}
+        />
+
+        <Box sx={{ display: 'flex', gap: 2, mt: 1 }}>
           <Button
             variant="outlined"
             onClick={() => router.push('/teacher/quiz')}
@@ -345,8 +328,12 @@ export default function CreateAssignmentClient({ teacher }: { teacher: Teacher }
           <Button
             onClick={handleCreateAssignment}
             variant="contained"
-            disabled={loading || !title || !description || !dueDate}
+            disabled={loading || (!description && !uploadedFile)}
             fullWidth
+            sx={{
+              bgcolor: 'rgb(147, 51, 234)',
+              '&:hover': { bgcolor: 'rgb(126, 34, 206)' },
+            }}
           >
             {loading ? <CircularProgress size={24} sx={{ color: 'white' }} /> : 'Create Assignment'}
           </Button>

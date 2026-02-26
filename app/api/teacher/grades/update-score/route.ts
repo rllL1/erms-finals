@@ -10,10 +10,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { submission_id, score } = await request.json()
+    const { submission_id, score, max_score } = await request.json()
 
     if (!submission_id || score === undefined) {
       return NextResponse.json({ error: 'Submission ID and score are required' }, { status: 400 })
+    }
+
+    // Validate score is a number
+    if (typeof score !== 'number' || isNaN(score) || score < 0) {
+      return NextResponse.json({ error: 'Score must be a valid non-negative number' }, { status: 400 })
+    }
+
+    if (max_score !== undefined && (typeof max_score !== 'number' || isNaN(max_score) || max_score <= 0)) {
+      return NextResponse.json({ error: 'Max score must be a valid positive number' }, { status: 400 })
     }
 
     // Verify teacher owns this submission's class
@@ -55,15 +64,20 @@ export async function POST(request: Request) {
     }
 
     // Update the score
+    const updateData: Record<string, unknown> = {
+      score: score,
+      is_graded: true,
+      graded_at: new Date().toISOString(),
+      graded_by: teacher.id,
+      status: 'graded'
+    }
+    if (max_score !== undefined) {
+      updateData.max_score = max_score
+    }
+
     const { error } = await supabase
       .from('student_submissions')
-      .update({
-        score: score,
-        is_graded: true,
-        graded_at: new Date().toISOString(),
-        graded_by: teacher.id,
-        status: 'graded'
-      })
+      .update(updateData)
       .eq('id', submission_id)
 
     if (error) {

@@ -8,9 +8,9 @@ export async function POST(request: Request) {
 
     console.log('Received assignment creation request:', { teacherId, title, dueDate, hasAttachment: !!attachmentUrl })
 
-    if (!teacherId || !title || !description) {
+    if (!teacherId || !title) {
       return NextResponse.json(
-        { error: 'Teacher ID, title, and description are required' },
+        { error: 'Teacher ID and title are required' },
         { status: 400 }
       )
     }
