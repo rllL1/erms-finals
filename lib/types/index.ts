@@ -44,6 +44,8 @@ export interface GroupClass {
   teacher_id: string
   class_name: string
   subject: string
+  department?: string | null
+  year_level?: string | null
   class_start_time: string
   class_end_time: string
   teacher_name: string

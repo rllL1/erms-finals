@@ -36,6 +36,7 @@ import {
   ClipboardList,
   FileText
 } from 'lucide-react'
+import GradesLegend from './GradesLegend'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1182,6 +1183,9 @@ export default function GradesClient({ teacherId, classes }: GradesClientProps) 
           {success}
         </Alert>
       )}
+
+      {/* Grades Legend */}
+      <GradesLegend />
 
       {/* Grading Overview */}
       {selectedClassId && (

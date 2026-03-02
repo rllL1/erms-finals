@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Box,
   Typography,
@@ -22,16 +22,19 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Divider,
   useMediaQuery,
   useTheme,
 } from '@mui/material'
-import { 
-  BookOpen, 
-  FileText, 
+import {
+  BookOpen,
+  FileText,
   ClipboardList,
   CheckCircle,
   Clock,
-  AlertCircle
+  AlertCircle,
+  Award,
+  BarChart3,
 } from 'lucide-react'
 
 interface Student {
@@ -46,17 +49,16 @@ interface ClassSummary {
   className: string
   subject: string
   teacherName: string
-  quizCount: number
-  quizGradedCount: number
-  assignmentCount: number
-  assignmentGradedCount: number
-  hasExamScore: boolean
+  quizAverage: number | null
+  assignmentAverage: number | null
   prelimScore: number | null
   midtermScore: number | null
   finalsScore: number | null
   maxPrelimScore: number
   maxMidtermScore: number
   maxFinalsScore: number
+  termGrades: { prelim: number | null; midterm: number | null; finals: number | null }
+  finalGrade: number | null
 }
 
 interface GradeItem {
@@ -71,20 +73,24 @@ interface GradeItem {
 }
 
 interface ExamScores {
-  examName: string
   prelimScore: number | null
   midtermScore: number | null
   finalsScore: number | null
   maxPrelimScore: number
   maxMidtermScore: number
   maxFinalsScore: number
+  portfolioScore: number | null
   gradedAt: string | null
 }
 
 interface ClassGrades {
   quizzes: GradeItem[]
   assignments: GradeItem[]
+  quizAverage: number | null
+  assignmentAverage: number | null
   exams: ExamScores | null
+  termGrades: { prelim: number | null; midterm: number | null; finals: number | null }
+  finalGrade: number | null
 }
 
 export default function StudentGradesClient({ student }: { student: Student }) {
@@ -99,39 +105,7 @@ export default function StudentGradesClient({ student }: { student: Student }) {
   const [tabValue, setTabValue] = useState(0)
   const [mounted, setMounted] = useState(false)
 
-  useEffect(() => {
-    setMounted(true)
-    fetchClasses()
-  }, [])
-
-  useEffect(() => {
-    if (selectedClassId) {
-      fetchClassGrades(selectedClassId)
-    }
-  }, [selectedClassId])
-
-  const fetchClasses = async () => {
-    try {
-      setLoading(true)
-      const response = await fetch(`/api/student/grades?studentId=${student.id}`)
-      const data = await response.json()
-
-      if (response.ok) {
-        setClasses(data.classes || [])
-        if (data.classes?.length > 0) {
-          setSelectedClassId(data.classes[0].classId)
-        }
-      } else {
-        setError(data.error || 'Failed to fetch classes')
-      }
-    } catch (err) {
-      setError('An error occurred while fetching classes')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const fetchClassGrades = async (classId: string) => {
+  const fetchClassGrades = useCallback(async (classId: string) => {
     try {
       setGradesLoading(true)
       const response = await fetch(`/api/student/grades?studentId=${student.id}&classId=${classId}`)
@@ -142,12 +116,52 @@ export default function StudentGradesClient({ student }: { student: Student }) {
       } else {
         setError(data.error || 'Failed to fetch grades')
       }
-    } catch (err) {
+    } catch {
       setError('An error occurred while fetching grades')
     } finally {
       setGradesLoading(false)
     }
-  }
+  }, [student.id])
+
+  useEffect(() => {
+    setMounted(true)
+    const fetchClasses = async () => {
+      try {
+        setLoading(true)
+        const response = await fetch(`/api/student/grades?studentId=${student.id}`)
+        const data = await response.json()
+
+        if (response.ok) {
+          setClasses(data.classes || [])
+          if (data.classes?.length > 0) {
+            setSelectedClassId(data.classes[0].classId)
+          }
+        } else {
+          setError(data.error || 'Failed to fetch classes')
+        }
+      } catch {
+        setError('An error occurred while fetching classes')
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchClasses()
+  }, [student.id])
+
+  useEffect(() => {
+    if (selectedClassId) {
+      fetchClassGrades(selectedClassId)
+    }
+  }, [selectedClassId, fetchClassGrades])
+
+  // Auto-refresh every 30 seconds
+  useEffect(() => {
+    if (!selectedClassId) return
+    const interval = setInterval(() => {
+      fetchClassGrades(selectedClassId)
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [selectedClassId, fetchClassGrades])
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -193,11 +207,22 @@ export default function StudentGradesClient({ student }: { student: Student }) {
     )
   }
 
-  const selectedClass = classes.find(c => c.classId === selectedClassId)
-
-  if (!mounted) {
-    return null
+  const formatScore = (score: number | null): string => {
+    if (score === null || score === undefined) return '—'
+    return score.toFixed(1)
   }
+
+  const getGradeColor = (pct: number | null): string => {
+    if (pct === null) return 'text.secondary'
+    if (pct >= 90) return '#16a34a'
+    if (pct >= 80) return '#2563eb'
+    if (pct >= 70) return '#f59e0b'
+    return '#ef4444'
+  }
+
+  const selectedClass = classes.find((c) => c.classId === selectedClassId)
+
+  if (!mounted) return null
 
   if (loading) {
     return (
@@ -232,316 +257,682 @@ export default function StudentGradesClient({ student }: { student: Student }) {
         </Alert>
       )}
 
-      {/* Class Selector */}
+      {/* ───── OVERVIEW TABLE: All Classes ───── */}
+      <Paper sx={{ mb: 4, overflow: 'hidden' }}>
+        <Box sx={{ px: 3, py: 2, bgcolor: '#f0fdf4', borderBottom: '2px solid #16a34a' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <BarChart3 size={20} color="#16a34a" />
+            <Typography variant="h6" sx={{ fontWeight: 700, color: '#15803d' }}>
+              Grades Overview
+            </Typography>
+          </Box>
+        </Box>
+        <TableContainer>
+          <Table size={isMobile ? 'small' : 'medium'}>
+            <TableHead>
+              <TableRow sx={{ bgcolor: '#f8fafc' }}>
+                <TableCell sx={{ fontWeight: 700 }}>Subject</TableCell>
+                {!isMobile && <TableCell sx={{ fontWeight: 700 }}>Class</TableCell>}
+                <TableCell align="center" sx={{ fontWeight: 700 }}>Quiz Avg</TableCell>
+                <TableCell align="center" sx={{ fontWeight: 700 }}>Assignment Avg</TableCell>
+                <TableCell align="center" sx={{ fontWeight: 700 }}>Prelim</TableCell>
+                <TableCell align="center" sx={{ fontWeight: 700 }}>Midterm</TableCell>
+                <TableCell align="center" sx={{ fontWeight: 700 }}>Finals</TableCell>
+                <TableCell align="center" sx={{ fontWeight: 700, color: '#16a34a' }}>
+                  Final Grade
+                </TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {classes.map((cls) => {
+                const hasAnyGrade =
+                  cls.quizAverage !== null ||
+                  cls.assignmentAverage !== null ||
+                  cls.prelimScore !== null ||
+                  cls.midtermScore !== null ||
+                  cls.finalsScore !== null ||
+                  cls.finalGrade !== null
+
+                return (
+                  <TableRow
+                    key={cls.classId}
+                    hover
+                    selected={cls.classId === selectedClassId}
+                    onClick={() => setSelectedClassId(cls.classId)}
+                    sx={{
+                      cursor: 'pointer',
+                      '&.Mui-selected': { bgcolor: '#f0fdf4' },
+                      '&.Mui-selected:hover': { bgcolor: '#dcfce7' },
+                    }}
+                  >
+                    <TableCell sx={{ fontWeight: 600 }}>{cls.subject || cls.className}</TableCell>
+                    {!isMobile && (
+                      <TableCell>
+                        <Typography variant="body2" color="text.secondary">
+                          {cls.className}
+                        </Typography>
+                      </TableCell>
+                    )}
+                    <TableCell align="center">
+                      {cls.quizAverage !== null ? (
+                        <Typography sx={{ fontWeight: 600, color: getGradeColor(cls.quizAverage) }}>
+                          {cls.quizAverage.toFixed(1)}%
+                        </Typography>
+                      ) : (
+                        <Typography color="text.disabled">—</Typography>
+                      )}
+                    </TableCell>
+                    <TableCell align="center">
+                      {cls.assignmentAverage !== null ? (
+                        <Typography sx={{ fontWeight: 600, color: getGradeColor(cls.assignmentAverage) }}>
+                          {cls.assignmentAverage.toFixed(1)}%
+                        </Typography>
+                      ) : (
+                        <Typography color="text.disabled">—</Typography>
+                      )}
+                    </TableCell>
+                    <TableCell align="center">
+                      {cls.prelimScore !== null ? (
+                        <Typography sx={{ fontWeight: 600, color: getGradeColor((cls.prelimScore / cls.maxPrelimScore) * 100) }}>
+                          {cls.prelimScore}/{cls.maxPrelimScore}
+                        </Typography>
+                      ) : (
+                        <Typography color="text.disabled">—</Typography>
+                      )}
+                    </TableCell>
+                    <TableCell align="center">
+                      {cls.midtermScore !== null ? (
+                        <Typography sx={{ fontWeight: 600, color: getGradeColor((cls.midtermScore / cls.maxMidtermScore) * 100) }}>
+                          {cls.midtermScore}/{cls.maxMidtermScore}
+                        </Typography>
+                      ) : (
+                        <Typography color="text.disabled">—</Typography>
+                      )}
+                    </TableCell>
+                    <TableCell align="center">
+                      {cls.finalsScore !== null ? (
+                        <Typography sx={{ fontWeight: 600, color: getGradeColor((cls.finalsScore / cls.maxFinalsScore) * 100) }}>
+                          {cls.finalsScore}/{cls.maxFinalsScore}
+                        </Typography>
+                      ) : (
+                        <Typography color="text.disabled">—</Typography>
+                      )}
+                    </TableCell>
+                    <TableCell align="center">
+                      {cls.finalGrade !== null ? (
+                        <Chip
+                          label={`${cls.finalGrade.toFixed(2)}`}
+                          size="small"
+                          sx={{
+                            fontWeight: 700,
+                            bgcolor: cls.finalGrade >= 75 ? '#dcfce7' : '#fef2f2',
+                            color: cls.finalGrade >= 75 ? '#15803d' : '#dc2626',
+                            border: `1px solid ${cls.finalGrade >= 75 ? '#86efac' : '#fca5a5'}`,
+                          }}
+                        />
+                      ) : hasAnyGrade ? (
+                        <Typography variant="caption" color="text.disabled">
+                          Pending
+                        </Typography>
+                      ) : (
+                        <Typography color="text.disabled">—</Typography>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+              {classes.every(
+                (cls) =>
+                  cls.quizAverage === null &&
+                  cls.assignmentAverage === null &&
+                  cls.prelimScore === null &&
+                  cls.midtermScore === null &&
+                  cls.finalsScore === null &&
+                  cls.finalGrade === null
+              ) && (
+                <TableRow>
+                  <TableCell colSpan={isMobile ? 7 : 8}>
+                    <Alert severity="info" sx={{ border: 'none' }}>
+                      No grades available yet. Grades will appear here once your teachers record them.
+                    </Alert>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Paper>
+
+      {/* ───── DETAILED VIEW for selected class ───── */}
       <FormControl fullWidth sx={{ mb: 3 }}>
-        <InputLabel>Select Class</InputLabel>
+        <InputLabel>Select Class for Details</InputLabel>
         <Select
           value={selectedClassId}
-          label="Select Class"
+          label="Select Class for Details"
           onChange={(e) => setSelectedClassId(e.target.value)}
         >
           {classes.map((cls) => (
             <MenuItem key={cls.classId} value={cls.classId}>
-              <Box sx={{ 
-                display: 'flex', 
-                flexDirection: isMobile ? 'column' : 'row',
-                gap: isMobile ? 0 : 1
-              }}>
-                <span>{cls.className} - {cls.subject}</span>
-                {!isMobile && <span>({cls.teacherName})</span>}
+              <Box sx={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 0 : 1 }}>
+                <span>
+                  {cls.className} — {cls.subject}
+                </span>
+                {!isMobile && (
+                  <span style={{ color: '#6b7280' }}>({cls.teacherName})</span>
+                )}
               </Box>
             </MenuItem>
           ))}
         </Select>
       </FormControl>
 
-      {/* Class Summary Cards */}
       {selectedClass && (
-        <Box sx={{ 
-          display: 'grid', 
-          gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, 
-          gap: { xs: 2, sm: 3 }, 
-          mb: 3 
-        }}>
-          <Card sx={{ height: '100%', borderTop: '4px solid #3b82f6' }}>
-            <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                <ClipboardList size={isMobile ? 20 : 24} color="#3b82f6" />
-                <Typography variant="h6" sx={{ fontWeight: 600, fontSize: { xs: '1rem', sm: '1.25rem' } }}>
-                  Quizzes
+        <>
+          {/* ── Summary Cards ── */}
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(4, 1fr)' },
+              gap: 2,
+              mb: 3,
+            }}
+          >
+            {/* Quiz Average */}
+            <Card sx={{ borderTop: '4px solid #3b82f6' }}>
+              <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
+                  <ClipboardList size={16} color="#3b82f6" />
+                  <Typography variant="caption" sx={{ fontWeight: 600, color: '#3b82f6' }}>
+                    Quiz Avg
+                  </Typography>
+                </Box>
+                <Typography variant="h5" sx={{ fontWeight: 700, color: getGradeColor(classGrades?.quizAverage ?? null) }}>
+                  {classGrades?.quizAverage !== null && classGrades?.quizAverage !== undefined
+                    ? `${classGrades.quizAverage.toFixed(1)}%`
+                    : '—'}
                 </Typography>
-              </Box>
-              <Typography variant="h4" sx={{ fontWeight: 700, color: '#3b82f6', fontSize: { xs: '1.5rem', sm: '2rem' } }}>
-                {selectedClass.quizGradedCount}/{selectedClass.quizCount}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
-                Graded / Total Submitted
-              </Typography>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card sx={{ height: '100%', borderTop: '4px solid #f59e0b' }}>
-            <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                <FileText size={isMobile ? 20 : 24} color="#f59e0b" />
-                <Typography variant="h6" sx={{ fontWeight: 600, fontSize: { xs: '1rem', sm: '1.25rem' } }}>
-                  Assignments
+            {/* Assignment Average */}
+            <Card sx={{ borderTop: '4px solid #f59e0b' }}>
+              <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
+                  <FileText size={16} color="#f59e0b" />
+                  <Typography variant="caption" sx={{ fontWeight: 600, color: '#f59e0b' }}>
+                    Assignment Avg
+                  </Typography>
+                </Box>
+                <Typography variant="h5" sx={{ fontWeight: 700, color: getGradeColor(classGrades?.assignmentAverage ?? null) }}>
+                  {classGrades?.assignmentAverage !== null && classGrades?.assignmentAverage !== undefined
+                    ? `${classGrades.assignmentAverage.toFixed(1)}%`
+                    : '—'}
                 </Typography>
-              </Box>
-              <Typography variant="h4" sx={{ fontWeight: 700, color: '#f59e0b', fontSize: { xs: '1.5rem', sm: '2rem' } }}>
-                {selectedClass.assignmentGradedCount}/{selectedClass.assignmentCount}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
-                Graded / Total Submitted
-              </Typography>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card sx={{ height: '100%', borderTop: '4px solid #16a34a', gridColumn: { xs: '1', sm: 'span 2', md: 'span 1' } }}>
-            <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                <BookOpen size={isMobile ? 20 : 24} color="#16a34a" />
-                <Typography variant="h6" sx={{ fontWeight: 600, fontSize: { xs: '1rem', sm: '1.25rem' } }}>
-                  Exams
-                </Typography>
-              </Box>
-              {selectedClass.hasExamScore ? (
-                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                  {selectedClass.prelimScore !== null && (
-                      <Box>
-                        <Typography variant="caption" color="text.secondary">Prelim</Typography>
-                        <Typography variant="h6" sx={{ fontWeight: 600, color: '#16a34a' }}>
-                          {selectedClass.prelimScore}/{selectedClass.maxPrelimScore}
-                        </Typography>
-                      </Box>
+            {/* Exam Scores */}
+            <Card sx={{ borderTop: '4px solid #8b5cf6' }}>
+              <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
+                  <BookOpen size={16} color="#8b5cf6" />
+                  <Typography variant="caption" sx={{ fontWeight: 600, color: '#8b5cf6' }}>
+                    Exams
+                  </Typography>
+                </Box>
+                {classGrades?.exams &&
+                (classGrades.exams.prelimScore !== null ||
+                  classGrades.exams.midtermScore !== null ||
+                  classGrades.exams.finalsScore !== null) ? (
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                    {classGrades.exams.prelimScore !== null && (
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        P: {classGrades.exams.prelimScore}
+                      </Typography>
                     )}
-                    {selectedClass.midtermScore !== null && (
-                      <Box>
-                        <Typography variant="caption" color="text.secondary">Midterm</Typography>
-                        <Typography variant="h6" sx={{ fontWeight: 600, color: '#16a34a' }}>
-                          {selectedClass.midtermScore}/{selectedClass.maxMidtermScore}
-                        </Typography>
-                      </Box>
+                    {classGrades.exams.midtermScore !== null && (
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        M: {classGrades.exams.midtermScore}
+                      </Typography>
                     )}
-                    {selectedClass.finalsScore !== null && (
-                      <Box>
-                        <Typography variant="caption" color="text.secondary">Finals</Typography>
-                        <Typography variant="h6" sx={{ fontWeight: 600, color: '#16a34a' }}>
-                          {selectedClass.finalsScore}/{selectedClass.maxFinalsScore}
-                        </Typography>
-                      </Box>
+                    {classGrades.exams.finalsScore !== null && (
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        F: {classGrades.exams.finalsScore}
+                      </Typography>
                     )}
                   </Box>
                 ) : (
-                  <Typography variant="body2" color="text.secondary">
-                    No exam scores yet
+                  <Typography variant="body2" color="text.disabled">
+                    No scores yet
                   </Typography>
                 )}
               </CardContent>
             </Card>
-        </Box>
+
+            {/* Final Grade */}
+            <Card
+              sx={{
+                borderTop: `4px solid ${
+                  classGrades?.finalGrade !== null && classGrades?.finalGrade !== undefined
+                    ? classGrades.finalGrade >= 75
+                      ? '#16a34a'
+                      : '#ef4444'
+                    : '#9ca3af'
+                }`,
+              }}
+            >
+              <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
+                  <Award size={16} color="#16a34a" />
+                  <Typography variant="caption" sx={{ fontWeight: 600, color: '#16a34a' }}>
+                    Final Grade
+                  </Typography>
+                </Box>
+                {classGrades?.finalGrade !== null && classGrades?.finalGrade !== undefined ? (
+                  <Typography
+                    variant="h5"
+                    sx={{
+                      fontWeight: 700,
+                      color: classGrades.finalGrade >= 75 ? '#16a34a' : '#ef4444',
+                    }}
+                  >
+                    {classGrades.finalGrade.toFixed(2)}
+                  </Typography>
+                ) : (
+                  <Typography variant="body2" color="text.disabled">
+                    Not yet available
+                  </Typography>
+                )}
+              </CardContent>
+            </Card>
+          </Box>
+
+          {/* ── Tabbed Detail Section ── */}
+          <Paper sx={{ mb: 3, overflow: 'hidden' }}>
+            <Tabs
+              value={tabValue}
+              onChange={(_, v) => setTabValue(v)}
+              variant={isMobile ? 'fullWidth' : 'standard'}
+              sx={{
+                borderBottom: 1,
+                borderColor: 'divider',
+                '& .MuiTab-root': {
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  minWidth: isMobile ? 'auto' : 120,
+                  fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                  px: { xs: 1, sm: 2 },
+                },
+                '& .Mui-selected': { color: '#16a34a !important' },
+                '& .MuiTabs-indicator': { backgroundColor: '#16a34a' },
+              }}
+            >
+              <Tab label={isMobile ? 'Quiz' : 'Quizzes'} icon={<ClipboardList size={16} />} iconPosition="start" />
+              <Tab label={isMobile ? 'Assign' : 'Assignments'} icon={<FileText size={16} />} iconPosition="start" />
+              <Tab label="Exams" icon={<BookOpen size={16} />} iconPosition="start" />
+              <Tab label={isMobile ? 'Final' : 'Final Grade'} icon={<Award size={16} />} iconPosition="start" />
+            </Tabs>
+
+            {gradesLoading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+                <CircularProgress sx={{ color: '#16a34a' }} />
+              </Box>
+            ) : (
+              <Box sx={{ p: 2 }}>
+                {/* ── QUIZZES TAB ── */}
+                {tabValue === 0 && (
+                  <>
+                    {classGrades?.quizzes && classGrades.quizzes.length > 0 ? (
+                      <>
+                        <TableContainer>
+                          <Table size={isMobile ? 'small' : 'medium'}>
+                            <TableHead>
+                              <TableRow sx={{ bgcolor: '#f8fafc' }}>
+                                <TableCell sx={{ fontWeight: 600 }}>Quiz Title</TableCell>
+                                <TableCell align="center" sx={{ fontWeight: 600 }}>Score</TableCell>
+                                <TableCell align="center" sx={{ fontWeight: 600 }}>Percentage</TableCell>
+                                <TableCell align="center" sx={{ fontWeight: 600 }}>Status</TableCell>
+                                {!isMobile && <TableCell sx={{ fontWeight: 600 }}>Submitted</TableCell>}
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {classGrades.quizzes.map((quiz) => (
+                                <TableRow key={quiz.id} hover>
+                                  <TableCell>{quiz.title}</TableCell>
+                                  <TableCell align="center">
+                                    {quiz.isGraded && quiz.score !== null ? (
+                                      <Typography sx={{ fontWeight: 600, color: '#16a34a' }}>
+                                        {quiz.score}/{quiz.maxScore}
+                                      </Typography>
+                                    ) : (
+                                      <Typography color="text.disabled">—</Typography>
+                                    )}
+                                  </TableCell>
+                                  <TableCell align="center">
+                                    {quiz.isGraded && quiz.score !== null && quiz.maxScore ? (
+                                      <Typography
+                                        sx={{
+                                          fontWeight: 600,
+                                          color: getGradeColor((quiz.score / quiz.maxScore) * 100),
+                                        }}
+                                      >
+                                        {((quiz.score / quiz.maxScore) * 100).toFixed(1)}%
+                                      </Typography>
+                                    ) : (
+                                      <Typography color="text.disabled">—</Typography>
+                                    )}
+                                  </TableCell>
+                                  <TableCell align="center">{getStatusChip(quiz.status, quiz.isGraded)}</TableCell>
+                                  {!isMobile && <TableCell>{formatDate(quiz.submittedAt)}</TableCell>}
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                        {classGrades.quizAverage !== null && (
+                          <Box sx={{ px: 2, py: 1.5, bgcolor: '#f0fdf4', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                              Quiz Average:
+                            </Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 700, color: getGradeColor(classGrades.quizAverage) }}>
+                              {classGrades.quizAverage.toFixed(1)}%
+                            </Typography>
+                          </Box>
+                        )}
+                      </>
+                    ) : (
+                      <Alert severity="info">No quiz submissions found for this class.</Alert>
+                    )}
+                  </>
+                )}
+
+                {/* ── ASSIGNMENTS TAB ── */}
+                {tabValue === 1 && (
+                  <>
+                    {classGrades?.assignments && classGrades.assignments.length > 0 ? (
+                      <>
+                        <TableContainer>
+                          <Table size={isMobile ? 'small' : 'medium'}>
+                            <TableHead>
+                              <TableRow sx={{ bgcolor: '#f8fafc' }}>
+                                <TableCell sx={{ fontWeight: 600 }}>Assignment Title</TableCell>
+                                <TableCell align="center" sx={{ fontWeight: 600 }}>Score</TableCell>
+                                <TableCell align="center" sx={{ fontWeight: 600 }}>Percentage</TableCell>
+                                <TableCell align="center" sx={{ fontWeight: 600 }}>Status</TableCell>
+                                {!isMobile && <TableCell sx={{ fontWeight: 600 }}>Submitted</TableCell>}
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {classGrades.assignments.map((assignment) => (
+                                <TableRow key={assignment.id} hover>
+                                  <TableCell>{assignment.title}</TableCell>
+                                  <TableCell align="center">
+                                    {assignment.isGraded && assignment.score !== null ? (
+                                      <Typography sx={{ fontWeight: 600, color: '#16a34a' }}>
+                                        {assignment.score}/{assignment.maxScore}
+                                      </Typography>
+                                    ) : (
+                                      <Typography color="text.disabled">—</Typography>
+                                    )}
+                                  </TableCell>
+                                  <TableCell align="center">
+                                    {assignment.isGraded && assignment.score !== null && assignment.maxScore ? (
+                                      <Typography
+                                        sx={{
+                                          fontWeight: 600,
+                                          color: getGradeColor((assignment.score / assignment.maxScore) * 100),
+                                        }}
+                                      >
+                                        {((assignment.score / assignment.maxScore) * 100).toFixed(1)}%
+                                      </Typography>
+                                    ) : (
+                                      <Typography color="text.disabled">—</Typography>
+                                    )}
+                                  </TableCell>
+                                  <TableCell align="center">{getStatusChip(assignment.status, assignment.isGraded)}</TableCell>
+                                  {!isMobile && <TableCell>{formatDate(assignment.submittedAt)}</TableCell>}
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                        {classGrades.assignmentAverage !== null && (
+                          <Box sx={{ px: 2, py: 1.5, bgcolor: '#fffbeb', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                              Assignment Average:
+                            </Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 700, color: getGradeColor(classGrades.assignmentAverage) }}>
+                              {classGrades.assignmentAverage.toFixed(1)}%
+                            </Typography>
+                          </Box>
+                        )}
+                      </>
+                    ) : (
+                      <Alert severity="info">No assignment submissions found for this class.</Alert>
+                    )}
+                  </>
+                )}
+
+                {/* ── EXAMS TAB ── */}
+                {tabValue === 2 && (
+                  <>
+                    {classGrades?.exams &&
+                    (classGrades.exams.prelimScore !== null ||
+                      classGrades.exams.midtermScore !== null ||
+                      classGrades.exams.finalsScore !== null) ? (
+                      <TableContainer>
+                        <Table>
+                          <TableHead>
+                            <TableRow sx={{ bgcolor: '#f8fafc' }}>
+                              <TableCell sx={{ fontWeight: 700 }}>Grading Period</TableCell>
+                              <TableCell align="center" sx={{ fontWeight: 700 }}>Score</TableCell>
+                              <TableCell align="center" sx={{ fontWeight: 700 }}>Max Score</TableCell>
+                              <TableCell align="center" sx={{ fontWeight: 700 }}>Percentage</TableCell>
+                              <TableCell align="center" sx={{ fontWeight: 700 }}>Term Grade</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {/* Prelim */}
+                            {classGrades.exams.prelimScore !== null && (
+                              <TableRow hover>
+                                <TableCell>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <Chip label="Prelim" size="small" sx={{ bgcolor: '#dbeafe', color: '#1d4ed8', fontWeight: 600 }} />
+                                  </Box>
+                                </TableCell>
+                                <TableCell align="center">
+                                  <Typography sx={{ fontWeight: 600 }}>{classGrades.exams.prelimScore}</Typography>
+                                </TableCell>
+                                <TableCell align="center">{classGrades.exams.maxPrelimScore}</TableCell>
+                                <TableCell align="center">
+                                  <Typography
+                                    sx={{
+                                      fontWeight: 600,
+                                      color: getGradeColor(
+                                        (classGrades.exams.prelimScore / classGrades.exams.maxPrelimScore) * 100
+                                      ),
+                                    }}
+                                  >
+                                    {((classGrades.exams.prelimScore / classGrades.exams.maxPrelimScore) * 100).toFixed(1)}%
+                                  </Typography>
+                                </TableCell>
+                                <TableCell align="center">
+                                  {classGrades.termGrades?.prelim !== null ? (
+                                    <Typography sx={{ fontWeight: 700, color: getGradeColor(classGrades.termGrades.prelim) }}>
+                                      {formatScore(classGrades.termGrades.prelim)}
+                                    </Typography>
+                                  ) : (
+                                    <Typography color="text.disabled">—</Typography>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            )}
+                            {/* Midterm */}
+                            {classGrades.exams.midtermScore !== null && (
+                              <TableRow hover>
+                                <TableCell>
+                                  <Chip label="Midterm" size="small" sx={{ bgcolor: '#fef3c7', color: '#92400e', fontWeight: 600 }} />
+                                </TableCell>
+                                <TableCell align="center">
+                                  <Typography sx={{ fontWeight: 600 }}>{classGrades.exams.midtermScore}</Typography>
+                                </TableCell>
+                                <TableCell align="center">{classGrades.exams.maxMidtermScore}</TableCell>
+                                <TableCell align="center">
+                                  <Typography
+                                    sx={{
+                                      fontWeight: 600,
+                                      color: getGradeColor(
+                                        (classGrades.exams.midtermScore / classGrades.exams.maxMidtermScore) * 100
+                                      ),
+                                    }}
+                                  >
+                                    {((classGrades.exams.midtermScore / classGrades.exams.maxMidtermScore) * 100).toFixed(1)}%
+                                  </Typography>
+                                </TableCell>
+                                <TableCell align="center">
+                                  {classGrades.termGrades?.midterm !== null ? (
+                                    <Typography sx={{ fontWeight: 700, color: getGradeColor(classGrades.termGrades.midterm) }}>
+                                      {formatScore(classGrades.termGrades.midterm)}
+                                    </Typography>
+                                  ) : (
+                                    <Typography color="text.disabled">—</Typography>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            )}
+                            {/* Finals */}
+                            {classGrades.exams.finalsScore !== null && (
+                              <TableRow hover>
+                                <TableCell>
+                                  <Chip label="Finals" size="small" sx={{ bgcolor: '#dcfce7', color: '#15803d', fontWeight: 600 }} />
+                                </TableCell>
+                                <TableCell align="center">
+                                  <Typography sx={{ fontWeight: 600 }}>{classGrades.exams.finalsScore}</Typography>
+                                </TableCell>
+                                <TableCell align="center">{classGrades.exams.maxFinalsScore}</TableCell>
+                                <TableCell align="center">
+                                  <Typography
+                                    sx={{
+                                      fontWeight: 600,
+                                      color: getGradeColor(
+                                        (classGrades.exams.finalsScore / classGrades.exams.maxFinalsScore) * 100
+                                      ),
+                                    }}
+                                  >
+                                    {((classGrades.exams.finalsScore / classGrades.exams.maxFinalsScore) * 100).toFixed(1)}%
+                                  </Typography>
+                                </TableCell>
+                                <TableCell align="center">
+                                  {classGrades.termGrades?.finals !== null ? (
+                                    <Typography sx={{ fontWeight: 700, color: getGradeColor(classGrades.termGrades.finals) }}>
+                                      {formatScore(classGrades.termGrades.finals)}
+                                    </Typography>
+                                  ) : (
+                                    <Typography color="text.disabled">—</Typography>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            )}
+                            {/* No scores row */}
+                            {classGrades.exams.prelimScore === null &&
+                              classGrades.exams.midtermScore === null &&
+                              classGrades.exams.finalsScore === null && (
+                                <TableRow>
+                                  <TableCell colSpan={5}>
+                                    <Alert severity="info">No exam scores recorded yet.</Alert>
+                                  </TableCell>
+                                </TableRow>
+                              )}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    ) : (
+                      <Alert severity="info">
+                        No exam scores available yet. Scores will appear here once your teacher records them.
+                      </Alert>
+                    )}
+                  </>
+                )}
+
+                {/* ── FINAL GRADE TAB ── */}
+                {tabValue === 3 && (
+                  <Box sx={{ p: { xs: 1, sm: 2 } }}>
+                    {classGrades?.finalGrade !== null && classGrades?.finalGrade !== undefined ? (
+                      <Card
+                        sx={{
+                          maxWidth: 500,
+                          mx: 'auto',
+                          border: `2px solid ${classGrades.finalGrade >= 75 ? '#16a34a' : '#ef4444'}`,
+                          borderRadius: 3,
+                        }}
+                      >
+                        <CardContent sx={{ textAlign: 'center', py: 4 }}>
+                          <Award size={48} color={classGrades.finalGrade >= 75 ? '#16a34a' : '#ef4444'} />
+                          <Typography variant="h6" sx={{ mt: 2, mb: 1, fontWeight: 600, color: 'text.secondary' }}>
+                            Final Grade
+                          </Typography>
+                          <Typography
+                            variant="h2"
+                            sx={{
+                              fontWeight: 800,
+                              color: classGrades.finalGrade >= 75 ? '#16a34a' : '#ef4444',
+                              mb: 2,
+                            }}
+                          >
+                            {classGrades.finalGrade.toFixed(2)}
+                          </Typography>
+                          <Chip
+                            label={classGrades.finalGrade >= 75 ? 'PASSED' : 'FAILED'}
+                            sx={{
+                              fontWeight: 700,
+                              fontSize: '0.9rem',
+                              px: 2,
+                              py: 0.5,
+                              bgcolor: classGrades.finalGrade >= 75 ? '#dcfce7' : '#fef2f2',
+                              color: classGrades.finalGrade >= 75 ? '#15803d' : '#dc2626',
+                            }}
+                          />
+                          <Divider sx={{ my: 3 }} />
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                            Grade Breakdown
+                          </Typography>
+                          <Box sx={{ display: 'flex', justifyContent: 'center', gap: 3, flexWrap: 'wrap' }}>
+                            <Box>
+                              <Typography variant="caption" color="text.secondary">Prelim</Typography>
+                              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                                {formatScore(classGrades.termGrades?.prelim ?? null)}
+                              </Typography>
+                            </Box>
+                            <Box>
+                              <Typography variant="caption" color="text.secondary">Midterm</Typography>
+                              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                                {formatScore(classGrades.termGrades?.midterm ?? null)}
+                              </Typography>
+                            </Box>
+                            <Box>
+                              <Typography variant="caption" color="text.secondary">Finals</Typography>
+                              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                                {formatScore(classGrades.termGrades?.finals ?? null)}
+                              </Typography>
+                            </Box>
+                          </Box>
+                          <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
+                            Formula: ((Prelim + Midterm) / 2 + Finals) / 2
+                          </Typography>
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      <Alert severity="info" sx={{ maxWidth: 500, mx: 'auto' }}>
+                        Your final grade is not yet available. It will appear here once your teacher has recorded grades for all grading periods (Prelim, Midterm, and Finals).
+                      </Alert>
+                    )}
+                  </Box>
+                )}
+              </Box>
+            )}
+          </Paper>
+        </>
       )}
-
-      {/* Tabs for Detailed Grades */}
-      <Paper sx={{ mb: 3, overflow: 'hidden' }}>
-        <Tabs
-          value={tabValue}
-          onChange={(_, newValue) => setTabValue(newValue)}
-          variant={isMobile ? 'fullWidth' : 'standard'}
-          sx={{
-            borderBottom: 1,
-            borderColor: 'divider',
-            '& .MuiTab-root': {
-              textTransform: 'none',
-              fontWeight: 600,
-              minWidth: isMobile ? 'auto' : 120,
-              fontSize: { xs: '0.75rem', sm: '0.875rem' },
-              px: { xs: 1, sm: 2 },
-            },
-            '& .Mui-selected': {
-              color: '#16a34a !important',
-            },
-            '& .MuiTabs-indicator': {
-              backgroundColor: '#16a34a',
-            },
-          }}
-        >
-          <Tab label={isMobile ? 'Quiz' : 'Quizzes'} icon={<ClipboardList size={16} />} iconPosition="start" />
-          <Tab label={isMobile ? 'Assign' : 'Assignments'} icon={<FileText size={16} />} iconPosition="start" />
-          <Tab label="Exams" icon={<BookOpen size={16} />} iconPosition="start" />
-        </Tabs>
-
-        {gradesLoading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-            <CircularProgress sx={{ color: '#16a34a' }} />
-          </Box>
-        ) : (
-          <Box sx={{ p: 2 }}>
-            {/* Quizzes Tab */}
-            {tabValue === 0 && (
-              <>
-                {classGrades?.quizzes && classGrades.quizzes.length > 0 ? (
-                  <TableContainer>
-                    <Table>
-                      <TableHead>
-                        <TableRow sx={{ bgcolor: '#f8fafc' }}>
-                          <TableCell sx={{ fontWeight: 600 }}>Quiz Title</TableCell>
-                          <TableCell sx={{ fontWeight: 600 }}>Score</TableCell>
-                          <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-                          <TableCell sx={{ fontWeight: 600 }}>Submitted</TableCell>
-                          <TableCell sx={{ fontWeight: 600 }}>Graded</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {classGrades.quizzes.map((quiz) => (
-                          <TableRow key={quiz.id} hover>
-                            <TableCell>{quiz.title}</TableCell>
-                            <TableCell>
-                              {quiz.isGraded ? (
-                                <Typography sx={{ fontWeight: 600, color: '#16a34a' }}>
-                                  {quiz.score}/{quiz.maxScore}
-                                </Typography>
-                              ) : (
-                                <Typography color="text.secondary">--</Typography>
-                              )}
-                            </TableCell>
-                            <TableCell>{getStatusChip(quiz.status, quiz.isGraded)}</TableCell>
-                            <TableCell>{formatDate(quiz.submittedAt)}</TableCell>
-                            <TableCell>
-                              {quiz.gradedAt ? formatDate(quiz.gradedAt) : '--'}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                ) : (
-                  <Alert severity="info">No quiz submissions found for this class.</Alert>
-                )}
-              </>
-            )}
-
-            {/* Assignments Tab */}
-            {tabValue === 1 && (
-              <>
-                {classGrades?.assignments && classGrades.assignments.length > 0 ? (
-                  <TableContainer>
-                    <Table>
-                      <TableHead>
-                        <TableRow sx={{ bgcolor: '#f8fafc' }}>
-                          <TableCell sx={{ fontWeight: 600 }}>Assignment Title</TableCell>
-                          <TableCell sx={{ fontWeight: 600 }}>Score</TableCell>
-                          <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-                          <TableCell sx={{ fontWeight: 600 }}>Submitted</TableCell>
-                          <TableCell sx={{ fontWeight: 600 }}>Graded</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {classGrades.assignments.map((assignment) => (
-                          <TableRow key={assignment.id} hover>
-                            <TableCell>{assignment.title}</TableCell>
-                            <TableCell>
-                              {assignment.isGraded ? (
-                                <Typography sx={{ fontWeight: 600, color: '#16a34a' }}>
-                                  {assignment.score}/{assignment.maxScore}
-                                </Typography>
-                              ) : (
-                                <Typography color="text.secondary">--</Typography>
-                              )}
-                            </TableCell>
-                            <TableCell>{getStatusChip(assignment.status, assignment.isGraded)}</TableCell>
-                            <TableCell>{formatDate(assignment.submittedAt)}</TableCell>
-                            <TableCell>
-                              {assignment.gradedAt ? formatDate(assignment.gradedAt) : '--'}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                ) : (
-                  <Alert severity="info">No assignment submissions found for this class.</Alert>
-                )}
-              </>
-            )}
-
-            {/* Exams Tab */}
-            {tabValue === 2 && (
-              <>
-                {classGrades?.exams ? (
-                  <TableContainer>
-                    <Table>
-                      <TableHead>
-                        <TableRow sx={{ bgcolor: '#f8fafc' }}>
-                          <TableCell sx={{ fontWeight: 600 }}>Exam Type</TableCell>
-                          <TableCell sx={{ fontWeight: 600 }}>Score</TableCell>
-                          <TableCell sx={{ fontWeight: 600 }}>Max Score</TableCell>
-                          <TableCell sx={{ fontWeight: 600 }}>Percentage</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {classGrades.exams.prelimScore !== null && (
-                          <TableRow hover>
-                            <TableCell>Prelim Exam</TableCell>
-                            <TableCell>
-                              <Typography sx={{ fontWeight: 600, color: '#16a34a' }}>
-                                {classGrades.exams.prelimScore}
-                              </Typography>
-                            </TableCell>
-                            <TableCell>{classGrades.exams.maxPrelimScore}</TableCell>
-                            <TableCell>
-                              {((classGrades.exams.prelimScore / classGrades.exams.maxPrelimScore) * 100).toFixed(1)}%
-                            </TableCell>
-                          </TableRow>
-                        )}
-                        {classGrades.exams.midtermScore !== null && (
-                          <TableRow hover>
-                            <TableCell>Midterm Exam</TableCell>
-                            <TableCell>
-                              <Typography sx={{ fontWeight: 600, color: '#16a34a' }}>
-                                {classGrades.exams.midtermScore}
-                              </Typography>
-                            </TableCell>
-                            <TableCell>{classGrades.exams.maxMidtermScore}</TableCell>
-                            <TableCell>
-                              {((classGrades.exams.midtermScore / classGrades.exams.maxMidtermScore) * 100).toFixed(1)}%
-                            </TableCell>
-                          </TableRow>
-                        )}
-                        {classGrades.exams.finalsScore !== null && (
-                          <TableRow hover>
-                            <TableCell>Finals Exam</TableCell>
-                            <TableCell>
-                              <Typography sx={{ fontWeight: 600, color: '#16a34a' }}>
-                                {classGrades.exams.finalsScore}
-                              </Typography>
-                            </TableCell>
-                            <TableCell>{classGrades.exams.maxFinalsScore}</TableCell>
-                            <TableCell>
-                              {((classGrades.exams.finalsScore / classGrades.exams.maxFinalsScore) * 100).toFixed(1)}%
-                            </TableCell>
-                          </TableRow>
-                        )}
-                        {classGrades.exams.prelimScore === null && 
-                         classGrades.exams.midtermScore === null && 
-                         classGrades.exams.finalsScore === null && (
-                          <TableRow>
-                            <TableCell colSpan={4}>
-                              <Alert severity="info">No exam scores recorded yet.</Alert>
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                ) : (
-                  <Alert severity="info">No exam scores found for this class.</Alert>
-                )}
-              </>
-            )}
-          </Box>
-        )}
-      </Paper>
     </Box>
   )
 }

@@ -19,7 +19,9 @@ export async function GET(
         joined_at,
         students (
           id,
+          student_id,
           student_name,
+          course,
           email
         )
       `)

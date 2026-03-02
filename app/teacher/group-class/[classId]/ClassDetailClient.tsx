@@ -383,7 +383,8 @@ export default function ClassDetailClient({ classId, teacher }: { classId: strin
                   <TableHead>
                     <TableRow>
                       <TableCell>Student Name</TableCell>
-                      <TableCell>Email</TableCell>
+                      <TableCell>Student ID</TableCell>
+                      <TableCell>Course / Department</TableCell>
                       <TableCell>Requested</TableCell>
                       <TableCell align="right">Actions</TableCell>
                     </TableRow>
@@ -392,7 +393,8 @@ export default function ClassDetailClient({ classId, teacher }: { classId: strin
                     {students.filter(s => s.status === 'pending').map((enrollment) => (
                       <TableRow key={enrollment.id}>
                         <TableCell>{enrollment.students?.student_name || 'N/A'}</TableCell>
-                        <TableCell>{enrollment.students?.email || 'N/A'}</TableCell>
+                        <TableCell>{enrollment.students?.student_id || '—'}</TableCell>
+                        <TableCell>{enrollment.students?.course || '—'}</TableCell>
                         <TableCell>
                           {new Date(enrollment.joined_at).toLocaleDateString()}
                         </TableCell>
@@ -437,7 +439,8 @@ export default function ClassDetailClient({ classId, teacher }: { classId: strin
                   <TableHead>
                     <TableRow>
                       <TableCell>Student Name</TableCell>
-                      <TableCell>Email</TableCell>
+                      <TableCell>Student ID</TableCell>
+                      <TableCell>Course / Department</TableCell>
                       <TableCell>Joined Date</TableCell>
                       <TableCell align="right">Actions</TableCell>
                     </TableRow>
@@ -446,7 +449,8 @@ export default function ClassDetailClient({ classId, teacher }: { classId: strin
                     {students.filter(s => s.status === 'approved').map((enrollment) => (
                       <TableRow key={enrollment.id}>
                         <TableCell>{enrollment.students?.student_name || 'N/A'}</TableCell>
-                        <TableCell>{enrollment.students?.email || 'N/A'}</TableCell>
+                        <TableCell>{enrollment.students?.student_id || '—'}</TableCell>
+                        <TableCell>{enrollment.students?.course || '—'}</TableCell>
                         <TableCell>
                           {new Date(enrollment.joined_at).toLocaleDateString()}
                         </TableCell>
@@ -489,7 +493,8 @@ export default function ClassDetailClient({ classId, teacher }: { classId: strin
                   <TableHead>
                     <TableRow>
                       <TableCell>Student Name</TableCell>
-                      <TableCell>Email</TableCell>
+                      <TableCell>Student ID</TableCell>
+                      <TableCell>Course / Department</TableCell>
                       <TableCell>Status</TableCell>
                       <TableCell align="right">Actions</TableCell>
                     </TableRow>
@@ -498,7 +503,8 @@ export default function ClassDetailClient({ classId, teacher }: { classId: strin
                     {students.filter(s => s.status === 'denied').map((enrollment) => (
                       <TableRow key={enrollment.id}>
                         <TableCell>{enrollment.students?.student_name || 'N/A'}</TableCell>
-                        <TableCell>{enrollment.students?.email || 'N/A'}</TableCell>
+                        <TableCell>{enrollment.students?.student_id || '—'}</TableCell>
+                        <TableCell>{enrollment.students?.course || '—'}</TableCell>
                         <TableCell>
                           <Chip label="Denied" color="error" size="small" />
                         </TableCell>
