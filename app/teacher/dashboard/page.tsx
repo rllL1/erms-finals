@@ -67,10 +67,10 @@ export default async function TeacherDashboard() {
       score,
       max_score,
       students(student_name),
-      class_materials(
+      class_materials!inner(
         title,
         material_type,
-        group_classes(class_name)
+        group_classes!inner(class_name, teacher_id)
       )
     `)
     .eq('class_materials.group_classes.teacher_id', teacher.id)

@@ -30,7 +30,7 @@ import {
   IconButton,
 } from '@mui/material'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
-import { ArrowLeft, Eye, CheckCircle, XCircle, Edit, Download, FileText } from 'lucide-react'
+import { ArrowLeft, Eye, CheckCircle, XCircle, Edit, Download, FileText, Printer, Clock } from 'lucide-react'
 import NotificationModal, { type ModalSeverity } from '@/app/components/NotificationModal'
 
 interface Teacher {
@@ -258,6 +258,22 @@ export default function MaterialSubmissionsClient({
 
   const isPdf = (url: string) => {
     return url?.toLowerCase().includes('.pdf')
+  }
+
+  const getViewerUrl = (url: string) => {
+    if (isPdf(url)) return url
+    return `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`
+  }
+
+  const isLate = (submission: Submission) => {
+    if (!material?.due_date || !submission.submitted_at) return false
+    return new Date(submission.submitted_at) > new Date(material.due_date)
+  }
+
+  const getSubmissionStatus = (submission: Submission) => {
+    if (submission.is_graded) return { label: 'Graded', color: 'success' as const }
+    if (isLate(submission)) return { label: 'Late', color: 'warning' as const }
+    return { label: 'Submitted', color: 'info' as const }
   }
 
   const getScoreColor = (score: number | null, maxScore: number) => {
@@ -511,16 +527,17 @@ export default function MaterialSubmissionsClient({
                     </TableCell>
                   )}
                   <TableCell>
-                    {submission.is_graded ? (
-                      <Chip
-                        icon={<CheckCircle size={16} />}
-                        label="Graded"
-                        color="success"
-                        size="small"
-                      />
-                    ) : (
-                      <Chip label="Pending" color="warning" size="small" />
-                    )}
+                    {(() => {
+                      const status = getSubmissionStatus(submission)
+                      return (
+                        <Chip
+                          icon={submission.is_graded ? <CheckCircle size={14} /> : undefined}
+                          label={status.label}
+                          color={status.color}
+                          size="small"
+                        />
+                      )
+                    })()}
                   </TableCell>
                   <TableCell>
                     {submission.feedback ? (
@@ -599,11 +616,38 @@ export default function MaterialSubmissionsClient({
       <Dialog
         open={viewDialog}
         onClose={() => setViewDialog(false)}
-        maxWidth="md"
+        maxWidth="lg"
         fullWidth
       >
-        <DialogTitle>
-          Submission Details - {selectedSubmission?.students?.student_name}
+        <DialogTitle sx={{ borderBottom: 1, borderColor: 'divider', pb: 1.5 }}>
+          <Typography variant="h6">
+            {selectedSubmission?.students?.student_name}&apos;s Submission
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1, mt: 0.75, flexWrap: 'wrap', alignItems: 'center' }}>
+            {selectedSubmission && (
+              <Chip
+                icon={selectedSubmission.is_graded ? <CheckCircle size={14} /> : undefined}
+                label={getSubmissionStatus(selectedSubmission).label}
+                color={getSubmissionStatus(selectedSubmission).color}
+                size="small"
+              />
+            )}
+            {selectedSubmission?.submitted_at && (
+              <Chip
+                icon={<Clock size={14} />}
+                label={`Submitted: ${new Date(selectedSubmission.submitted_at).toLocaleString()}`}
+                size="small"
+                variant="outlined"
+              />
+            )}
+            {selectedSubmission?.score !== null && selectedSubmission?.score !== undefined && (
+              <Chip
+                label={`Score: ${selectedSubmission.score}/${selectedSubmission.max_score}`}
+                color={getScoreColor(selectedSubmission.score, selectedSubmission.max_score)}
+                size="small"
+              />
+            )}
+          </Box>
         </DialogTitle>
         <DialogContent>
           {/* Show assignment response text */}
@@ -616,46 +660,58 @@ export default function MaterialSubmissionsClient({
             </Box>
           )}
 
-          {/* Show uploaded file for assignments */}
+          {/* Show uploaded file for assignments - with inline preview */}
           {isAssignment && selectedSubmission?.assignment_file_url && (
             <Box sx={{ mt: 2 }}>
-              <Typography variant="subtitle2" gutterBottom>Uploaded Answer File:</Typography>
-              <Card variant="outlined" sx={{ p: 2 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-                  <FileText size={24} />
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography variant="body2" noWrap>
-                      {getFileNameFromUrl(selectedSubmission.assignment_file_url)}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', gap: 1 }}>
-                    {isPdf(selectedSubmission.assignment_file_url) && (
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        startIcon={<Eye size={16} />}
-                        onClick={() => handlePreviewFile(
-                          selectedSubmission.assignment_file_url!,
-                          selectedSubmission.students?.student_name || 'Student'
-                        )}
-                      >
-                        Preview
-                      </Button>
-                    )}
-                    <Button
-                      size="small"
-                      variant="contained"
-                      startIcon={<Download size={16} />}
-                      component="a"
-                      href={selectedSubmission.assignment_file_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      Download
-                    </Button>
-                  </Box>
+              <Typography variant="subtitle2" gutterBottom>Submitted File:</Typography>
+              <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'hidden' }}>
+                {/* File viewer toolbar */}
+                <Box sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  p: 1.5,
+                  bgcolor: 'grey.100',
+                  borderBottom: 1,
+                  borderColor: 'divider',
+                  flexWrap: 'wrap',
+                }}>
+                  <FileText size={16} />
+                  <Typography variant="body2" sx={{ flex: 1 }} noWrap>
+                    {getFileNameFromUrl(selectedSubmission.assignment_file_url)}
+                  </Typography>
+                  <Chip
+                    label={isPdf(selectedSubmission.assignment_file_url) ? 'PDF' : 'Word'}
+                    size="small"
+                    variant="outlined"
+                  />
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<Download size={14} />}
+                    component="a"
+                    href={selectedSubmission.assignment_file_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Download
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<Printer size={14} />}
+                    onClick={() => window.open(selectedSubmission.assignment_file_url!, '_blank')}
+                  >
+                    Print
+                  </Button>
                 </Box>
-              </Card>
+                {/* Document Preview iframe */}
+                <iframe
+                  src={getViewerUrl(selectedSubmission.assignment_file_url)}
+                  style={{ width: '100%', height: '500px', border: 'none', display: 'block' }}
+                  title="Student Submission Preview"
+                />
+              </Box>
             </Box>
           )}
 
@@ -740,6 +796,14 @@ export default function MaterialSubmissionsClient({
             </Box>
           )}
 
+          {/* Teacher feedback if present */}
+          {selectedSubmission?.feedback && (
+            <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+              <Typography variant="subtitle2" gutterBottom>Feedback:</Typography>
+              <Typography variant="body2">{selectedSubmission.feedback}</Typography>
+            </Box>
+          )}
+
           {/* No content fallback */}
           {isAssignment && !selectedSubmission?.assignment_response && !selectedSubmission?.assignment_file_url && (
             <Box sx={{ mt: 2, textAlign: 'center', py: 4 }}>
@@ -748,6 +812,25 @@ export default function MaterialSubmissionsClient({
           )}
         </DialogContent>
         <DialogActions>
+          {isAssignment && selectedSubmission?.assignment_file_url && (
+            <>
+              <Button
+                startIcon={<Download size={16} />}
+                component="a"
+                href={selectedSubmission.assignment_file_url}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Download
+              </Button>
+              <Button
+                startIcon={<Printer size={16} />}
+                onClick={() => window.open(selectedSubmission.assignment_file_url!, '_blank')}
+              >
+                Print
+              </Button>
+            </>
+          )}
           <Button onClick={() => setViewDialog(false)}>Close</Button>
         </DialogActions>
       </Dialog>
@@ -825,21 +908,22 @@ export default function MaterialSubmissionsClient({
         </DialogActions>
       </Dialog>
 
-      {/* PDF Preview Dialog */}
+      {/* Document Preview Dialog */}
       <Dialog
         open={previewDialog}
         onClose={() => setPreviewDialog(false)}
         maxWidth="lg"
         fullWidth
       >
-        <DialogTitle>
-          Preview - {previewFileName}
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, borderBottom: 1, borderColor: 'divider' }}>
+          <FileText size={20} />
+          <Typography variant="h6" sx={{ flex: 1 }}>Preview — {previewFileName}</Typography>
         </DialogTitle>
         <DialogContent sx={{ p: 0, height: '75vh' }}>
           <iframe
-            src={previewUrl}
+            src={getViewerUrl(previewUrl)}
             style={{ width: '100%', height: '100%', border: 'none' }}
-            title="PDF Preview"
+            title="File Preview"
           />
         </DialogContent>
         <DialogActions>
@@ -851,6 +935,12 @@ export default function MaterialSubmissionsClient({
             startIcon={<Download size={16} />}
           >
             Download
+          </Button>
+          <Button
+            startIcon={<Printer size={16} />}
+            onClick={() => window.open(previewUrl, '_blank')}
+          >
+            Print
           </Button>
           <Button onClick={() => setPreviewDialog(false)}>Close</Button>
         </DialogActions>

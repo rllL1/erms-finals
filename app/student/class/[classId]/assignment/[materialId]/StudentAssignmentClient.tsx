@@ -12,12 +12,8 @@ import {
   CircularProgress,
   Chip,
   IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
 } from '@mui/material'
-import { ArrowLeft, Clock, Send, FileText, Upload, Download, Eye, X, File } from 'lucide-react'
+import { ArrowLeft, Clock, Send, FileText, Upload, Download, X, File, Printer } from 'lucide-react'
 import NotificationModal, { type ModalSeverity } from '@/app/components/NotificationModal'
 
 interface Student {
@@ -80,11 +76,6 @@ export default function StudentAssignmentClient({
   } | null>(null)
   const [uploading, setUploading] = useState(false)
   const [fileError, setFileError] = useState('')
-
-  // PDF preview
-  const [previewDialog, setPreviewDialog] = useState(false)
-  const [previewUrl, setPreviewUrl] = useState('')
-  const [previewTitle, setPreviewTitle] = useState('')
 
   // Notification modal
   const [notification, setNotification] = useState<{
@@ -155,12 +146,10 @@ export default function StudentAssignmentClient({
   }
 
   const isPdf = (url: string) => url?.toLowerCase().includes('.pdf')
-  const _isWord = (url: string) => url?.toLowerCase().match(/\.(doc|docx)$/)
 
-  const handlePreviewPdf = (url: string, title: string) => {
-    setPreviewUrl(url)
-    setPreviewTitle(title)
-    setPreviewDialog(true)
+  const getViewerUrl = (url: string) => {
+    if (isPdf(url)) return url
+    return `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`
   }
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -305,6 +294,13 @@ export default function StudentAssignmentClient({
   }
 
   const alreadySubmitted = !!existingSubmission
+  const submissionStatus = !existingSubmission
+    ? 'not_submitted'
+    : existingSubmission.is_graded
+      ? 'graded'
+      : (material?.due_date && new Date(existingSubmission.submitted_at) > new Date(material.due_date)
+          ? 'late'
+          : 'submitted')
 
   return (
     <Box sx={{ maxWidth: '1024px', mx: 'auto', mt: 4, mb: 4, px: 2 }}>
@@ -350,8 +346,17 @@ export default function StudentAssignmentClient({
             {material.time_limit && (
               <Chip label={`${material.time_limit} minutes`} />
             )}
-            {alreadySubmitted && (
-              <Chip label="Already Submitted" color="success" />
+            {submissionStatus === 'not_submitted' && (
+              <Chip label="Not Submitted" color="default" variant="outlined" />
+            )}
+            {submissionStatus === 'submitted' && (
+              <Chip label="Submitted" color="success" />
+            )}
+            {submissionStatus === 'late' && (
+              <Chip label="Late Submission" color="warning" />
+            )}
+            {submissionStatus === 'graded' && (
+              <Chip label="Graded" color="primary" />
             )}
           </Box>
 
@@ -386,60 +391,54 @@ export default function StudentAssignmentClient({
 
             {/* Show teacher's uploaded file */}
             {assignment.attachment_url && (
-              <Card
-                variant="outlined"
-                sx={{
-                  p: 2,
-                  bgcolor: '#eff6ff',
-                  borderColor: '#2563eb',
-                }}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-                  <FileText size={24} color="#2563eb" />
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography variant="body1" fontWeight="medium" noWrap>
-                      {assignment.attachment_name || 'Assignment File'}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {isPdf(assignment.attachment_url) ? 'PDF Document' : 'Word Document'}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', gap: 1 }}>
-                    {isPdf(assignment.attachment_url) && (
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        startIcon={<Eye size={16} />}
-                        onClick={() => handlePreviewPdf(assignment.attachment_url!, assignment.attachment_name || 'Assignment')}
-                      >
-                        View PDF
-                      </Button>
-                    )}
-                    <Button
-                      variant="contained"
-                      size="small"
-                      startIcon={<Download size={16} />}
-                      component="a"
-                      href={assignment.attachment_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      Download
-                    </Button>
-                  </Box>
+              <Box sx={{ border: 1, borderColor: '#2563eb', borderRadius: 1, overflow: 'hidden' }}>
+                {/* Document Viewer Toolbar */}
+                <Box sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  p: 1.5,
+                  bgcolor: '#1e40af',
+                  flexWrap: 'wrap',
+                }}>
+                  <FileText size={18} color="white" />
+                  <Typography variant="body2" fontWeight="medium" sx={{ color: 'white', flex: 1, minWidth: 0 }} noWrap>
+                    {assignment.attachment_name || 'Assignment File'}
+                  </Typography>
+                  <Chip
+                    label={isPdf(assignment.attachment_url) ? 'PDF' : 'Word'}
+                    size="small"
+                    sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white', height: 24 }}
+                  />
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<Download size={14} />}
+                    component="a"
+                    href={assignment.attachment_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', '&:hover': { borderColor: 'white' } }}
+                  >
+                    Download
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<Printer size={14} />}
+                    onClick={() => window.open(assignment.attachment_url!, '_blank')}
+                    sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', '&:hover': { borderColor: 'white' } }}
+                  >
+                    Print
+                  </Button>
                 </Box>
-
-                {/* Embedded PDF viewer */}
-                {isPdf(assignment.attachment_url) && (
-                  <Box sx={{ mt: 2, border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'hidden' }}>
-                    <iframe
-                      src={assignment.attachment_url}
-                      style={{ width: '100%', height: '500px', border: 'none' }}
-                      title="Assignment PDF"
-                    />
-                  </Box>
-                )}
-              </Card>
+                {/* Document Preview */}
+                <iframe
+                  src={getViewerUrl(assignment.attachment_url)}
+                  style={{ width: '100%', height: '600px', border: 'none', display: 'block' }}
+                  title="Assignment Document"
+                />
+              </Box>
             )}
 
             {/* Fallback if there's no file and no meaningful description */}
@@ -552,20 +551,79 @@ export default function StudentAssignmentClient({
         </Card>
       ) : (
         <Card>
-          <CardContent sx={{ textAlign: 'center', py: 4 }}>
-            <CheckCircleIcon />
-            <Typography variant="h6" sx={{ mt: 1 }} color="success.main">
-              Assignment Submitted
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-              You have already submitted this assignment.
-            </Typography>
-            {existingSubmission?.score !== null && existingSubmission?.score !== undefined && (
-              <Chip
-                label={`Score: ${existingSubmission.score}/${existingSubmission.max_score}`}
-                color="primary"
-                sx={{ mt: 2 }}
-              />
+          <CardContent>
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2 }}>
+              <CheckCircleIcon />
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="h6" color="success.main">Assignment Submitted</Typography>
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 0.5, alignItems: 'center' }}>
+                  {existingSubmission?.submitted_at && (
+                    <Typography variant="caption" color="text.secondary">
+                      Submitted: {new Date(existingSubmission.submitted_at).toLocaleString()}
+                    </Typography>
+                  )}
+                  {submissionStatus === 'late' && <Chip label="Late" color="warning" size="small" />}
+                  {submissionStatus === 'graded' && <Chip label="Graded" color="primary" size="small" />}
+                </Box>
+              </Box>
+              {existingSubmission?.score !== null && existingSubmission?.score !== undefined && (
+                <Chip
+                  label={`Score: ${existingSubmission.score}/${existingSubmission.max_score}`}
+                  color="primary"
+                />
+              )}
+            </Box>
+
+            {existingSubmission?.assignment_file_url && (
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="subtitle2" gutterBottom>Your Submitted File:</Typography>
+                <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'hidden' }}>
+                  <Box sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                    p: 1,
+                    bgcolor: 'grey.100',
+                    borderBottom: 1,
+                    borderColor: 'divider',
+                    flexWrap: 'wrap',
+                  }}>
+                    <FileText size={16} />
+                    <Typography variant="caption" sx={{ flex: 1 }} noWrap>
+                      {existingSubmission.assignment_response || 'Submitted file'}
+                    </Typography>
+                    <Button
+                      size="small"
+                      startIcon={<Download size={12} />}
+                      component="a"
+                      href={existingSubmission.assignment_file_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Download
+                    </Button>
+                    <Button
+                      size="small"
+                      startIcon={<Printer size={12} />}
+                      onClick={() => window.open(existingSubmission.assignment_file_url, '_blank')}
+                    >
+                      Print
+                    </Button>
+                  </Box>
+                  <iframe
+                    src={getViewerUrl(existingSubmission.assignment_file_url)}
+                    style={{ width: '100%', height: '400px', border: 'none', display: 'block' }}
+                    title="Submitted File Preview"
+                  />
+                </Box>
+              </Box>
+            )}
+
+            {existingSubmission?.feedback && (
+              <Box sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+                <Typography variant="subtitle2" gutterBottom>Teacher Feedback:</Typography>
+                <Typography variant="body2">{existingSubmission.feedback}</Typography>
+              </Box>
             )}
           </CardContent>
         </Card>
@@ -590,35 +648,6 @@ export default function StudentAssignmentClient({
           </Button>
         </Box>
       )}
-
-      {/* PDF Preview Dialog */}
-      <Dialog
-        open={previewDialog}
-        onClose={() => setPreviewDialog(false)}
-        maxWidth="lg"
-        fullWidth
-      >
-        <DialogTitle>{previewTitle}</DialogTitle>
-        <DialogContent sx={{ p: 0, height: '75vh' }}>
-          <iframe
-            src={previewUrl}
-            style={{ width: '100%', height: '100%', border: 'none' }}
-            title="PDF Preview"
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button
-            component="a"
-            href={previewUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            startIcon={<Download size={16} />}
-          >
-            Download
-          </Button>
-          <Button onClick={() => setPreviewDialog(false)}>Close</Button>
-        </DialogActions>
-      </Dialog>
 
       {/* Notification Modal */}
       <NotificationModal

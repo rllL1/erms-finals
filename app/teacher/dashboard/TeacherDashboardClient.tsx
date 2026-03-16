@@ -490,25 +490,25 @@ export default function TeacherDashboardClient({
                     <TableRow key={submission.id} hover>
                       <TableCell sx={{ py: 1.5 }}>
                         <Typography variant="body2" fontWeight={500}>
-                          {submission.students?.[0]?.student_name || 'N/A'}
+                          {submission.students?.student_name || 'N/A'}
                         </Typography>
                       </TableCell>
                       <TableCell sx={{ py: 1.5 }}>
                         <Typography variant="body2" noWrap sx={{ maxWidth: 180 }}>
-                          {submission.class_materials?.[0]?.title || 'N/A'}
+                          {submission.class_materials?.title || 'N/A'}
                         </Typography>
                       </TableCell>
                       <TableCell sx={{ py: 1.5 }}>
                         <Chip
-                          label={submission.class_materials?.[0]?.material_type || 'N/A'}
+                          label={submission.class_materials?.material_type || 'N/A'}
                           size="small"
                           sx={{
                             height: 22,
                             fontSize: '0.65rem',
                             fontWeight: 600,
                             textTransform: 'capitalize',
-                            bgcolor: submission.class_materials?.[0]?.material_type === 'quiz' ? 'rgba(37, 99, 235, 0.1)' : 'rgba(234, 88, 12, 0.1)',
-                            color: submission.class_materials?.[0]?.material_type === 'quiz' ? '#2563eb' : '#ea580c',
+                            bgcolor: submission.class_materials?.material_type === 'quiz' ? 'rgba(37, 99, 235, 0.1)' : 'rgba(234, 88, 12, 0.1)',
+                            color: submission.class_materials?.material_type === 'quiz' ? '#2563eb' : '#ea580c',
                           }}
                         />
                       </TableCell>

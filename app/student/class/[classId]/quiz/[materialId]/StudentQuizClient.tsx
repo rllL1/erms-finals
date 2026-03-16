@@ -18,7 +18,6 @@ import {
   Chip,
   LinearProgress,
   Snackbar,
-  IconButton,
 } from '@mui/material'
 import { ArrowLeft, Clock, Send, Save, ChevronLeft, ChevronRight } from 'lucide-react'
 
@@ -78,7 +77,9 @@ export default function StudentQuizClient({
   const [existingSubmissionId, setExistingSubmissionId] = useState<string | null>(null)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [answersLoaded, setAnswersLoaded] = useState(false)
-  const [currentPage, setCurrentPage] = useState(0) // 0-indexed page for pagination
+  const [currentPage, setCurrentPage] = useState(0) // 0-indexed page number
+  const [pageValidationError, setPageValidationError] = useState('')
+  const [unansweredOnPage, setUnansweredOnPage] = useState<string[]>([])
 
   // Refs for debounced DB save
   const dbSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -417,6 +418,13 @@ export default function StudentQuizClient({
 
     // Debounced save to database
     debouncedSaveToDB(newAnswers)
+
+    // Clear validation highlight for this question when answered
+    setUnansweredOnPage(prev => {
+      const remaining = prev.filter(id => id !== questionId)
+      if (remaining.length === 0) setPageValidationError('')
+      return remaining
+    })
   }
 
   const formatTime = (seconds: number) => {
@@ -483,6 +491,76 @@ export default function StudentQuizClient({
   const answeredCount = Object.keys(answers).length
   const progress = questions.length > 0 ? (answeredCount / questions.length) * 100 : 0
 
+  // ── Page computation ─────────────────────────────────────────────────────
+  // ≤10 questions → single page (no pagination). >10 → 10 per page.
+  const QUESTIONS_PER_PAGE = 10
+  const totalPages =
+    questions.length <= QUESTIONS_PER_PAGE
+      ? 1
+      : Math.ceil(questions.length / QUESTIONS_PER_PAGE)
+  const pageStart       = currentPage * QUESTIONS_PER_PAGE
+  const pageEnd         = Math.min(pageStart + QUESTIONS_PER_PAGE, questions.length)
+  const pageQuestions   = questions.slice(pageStart, pageEnd)
+  const pageAnsweredCount = pageQuestions.filter(q => !!answers[q.id]).length
+
+  // ── Page handlers ─────────────────────────────────────────────────────────
+  const handleNextPage = () => {
+    const unanswered = pageQuestions.filter(q => !answers[q.id]).map(q => q.id)
+    if (unanswered.length > 0) {
+      setPageValidationError('Please answer all required questions before proceeding.')
+      setUnansweredOnPage(unanswered)
+      document.getElementById(`question-${unanswered[0]}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      return
+    }
+    saveProgressToDB(latestAnswersRef.current)
+    setCurrentPage(p => p + 1)
+    setPageValidationError('')
+    setUnansweredOnPage([])
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handlePrevPage = () => {
+    saveProgressToDB(latestAnswersRef.current)
+    setCurrentPage(p => Math.max(0, p - 1))
+    setPageValidationError('')
+    setUnansweredOnPage([])
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleLastPageSubmit = () => {
+    const unanswered = pageQuestions.filter(q => !answers[q.id]).map(q => q.id)
+    if (unanswered.length > 0) {
+      setPageValidationError('Please answer all required questions before submitting.')
+      setUnansweredOnPage(unanswered)
+      document.getElementById(`question-${unanswered[0]}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      return
+    }
+    handleSubmit()
+  }
+
+  const normalizeOptions = (opts: Question['options']): string[] => {
+    if (Array.isArray(opts)) return opts
+    if (typeof opts === 'string') {
+      try { return JSON.parse(opts) } catch { return [] }
+    }
+    return []
+  }
+
+  // Shared button style tokens
+  const purpleContained = {
+    bgcolor: 'rgb(147, 51, 234)',
+    '&:hover': { bgcolor: 'rgb(126, 34, 206)' },
+    '&:disabled': { bgcolor: 'grey.300' },
+  }
+  const purpleOutlined = {
+    borderColor: 'rgb(147, 51, 234)',
+    color: 'rgb(147, 51, 234)',
+    '&:hover': { borderColor: 'rgb(126, 34, 206)', bgcolor: 'rgba(147,51,234,0.04)' },
+    '&:disabled': { borderColor: 'grey.300', color: 'grey.400' },
+  }
+
   return (
     <Box sx={{ maxWidth: '1024px', mx: 'auto', mt: 4, mb: 4, px: 2 }}>
       <Button
@@ -500,6 +578,7 @@ export default function StudentQuizClient({
         </Alert>
       )}
 
+      {/* ── Quiz header card ─────────────────────────────────────────────── */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 2 }}>
@@ -515,22 +594,10 @@ export default function StudentQuizClient({
             </Box>
             <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
               {saveStatus === 'saving' && (
-                <Chip
-                  icon={<Save size={14} />}
-                  label="Saving..."
-                  size="small"
-                  color="default"
-                  variant="outlined"
-                />
+                <Chip icon={<Save size={14} />} label="Saving…" size="small" variant="outlined" />
               )}
               {saveStatus === 'saved' && (
-                <Chip
-                  icon={<Save size={14} />}
-                  label="Saved"
-                  size="small"
-                  color="success"
-                  variant="outlined"
-                />
+                <Chip icon={<Save size={14} />} label="Saved" size="small" color="success" variant="outlined" />
               )}
               {timeLeft !== null && (
                 <Chip
@@ -542,6 +609,7 @@ export default function StudentQuizClient({
               )}
             </Box>
           </Box>
+
           <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
             <Chip label={`${questions.length} Questions`} />
             <Chip label={`${totalPoints} Points`} />
@@ -550,343 +618,335 @@ export default function StudentQuizClient({
               color={answeredCount === questions.length ? 'success' : 'default'}
             />
           </Box>
+
           <Box sx={{ mt: 2 }}>
-            <Typography variant="caption" color="text.secondary" gutterBottom>
-              Progress
-            </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+              <Typography variant="caption" color="text.secondary">Overall Progress</Typography>
+              <Typography variant="caption" color="text.secondary">{Math.round(progress)}%</Typography>
+            </Box>
             <LinearProgress variant="determinate" value={progress} sx={{ height: 8, borderRadius: 1 }} />
           </Box>
         </CardContent>
       </Card>
 
+      {/* ── Empty state ──────────────────────────────────────────────────── */}
       {questions.length === 0 ? (
         <Card>
           <CardContent sx={{ textAlign: 'center', py: 4 }}>
-            <Typography color="text.secondary">
-              No questions available for this quiz
-            </Typography>
+            <Typography color="text.secondary">No questions available for this quiz</Typography>
           </CardContent>
         </Card>
       ) : (
-        (() => {
-          const QUESTIONS_PER_SET = 10
-          const totalSets = Math.ceil(questions.length / QUESTIONS_PER_SET)
-          const currentSet = Math.floor(currentPage / QUESTIONS_PER_SET)
-          const setStart = currentSet * QUESTIONS_PER_SET
-          const setEnd = Math.min(setStart + QUESTIONS_PER_SET, questions.length)
-          const visibleQuestions = questions.slice(setStart, setEnd)
-
-          return (
-            <>
-              {/* Paging Set Navigation */}
-              <Card sx={{ mb: 2, bgcolor: 'grey.50' }}>
-                <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-                  {/* Set indicator */}
-                  {totalSets > 1 && (
-                    <Typography
-                      variant="caption"
-                      color="text.secondary"
-                      sx={{ display: 'block', textAlign: 'center', mb: 1 }}
-                    >
-                      Questions {setStart + 1}–{setEnd} of {questions.length}
+        <>
+          {/* ── Page navigation header (multi-page only) ─────────────────── */}
+          {totalPages > 1 && (
+            <Card sx={{ mb: 2, bgcolor: 'grey.50' }}>
+              <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                {/* Page label + answered-on-this-page count */}
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+                  <Typography variant="body1" fontWeight="bold" color="rgb(147, 51, 234)">
+                    Page {currentPage + 1} of {totalPages}
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                    <Typography variant="caption" color="text.secondary">
+                      Q{pageStart + 1}–Q{pageEnd}
                     </Typography>
-                  )}
+                    <Chip
+                      label={`${pageAnsweredCount}/${pageQuestions.length}`}
+                      size="small"
+                      color={pageAnsweredCount === pageQuestions.length ? 'success' : 'default'}
+                      variant={pageAnsweredCount === pageQuestions.length ? 'filled' : 'outlined'}
+                    />
+                  </Box>
+                </Box>
 
-                  {/* Page set arrows + numbered buttons */}
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
-                    {/* Previous Set Arrow */}
-                    {totalSets > 1 && (
-                      <IconButton
-                        size="small"
-                        onClick={() => {
-                          const newPage = Math.max(0, setStart - QUESTIONS_PER_SET)
-                          setCurrentPage(newPage)
-                        }}
-                        disabled={currentSet === 0}
+                {/* Clickable question-number dots for current page */}
+                <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap', justifyContent: 'center' }}>
+                  {pageQuestions.map((q, idx) => {
+                    const isAnswered    = !!answers[q.id]
+                    const isHighlighted = unansweredOnPage.includes(q.id)
+                    return (
+                      <Box
+                        key={q.id}
+                        onClick={() =>
+                          document
+                            .getElementById(`question-${q.id}`)
+                            ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                        }
                         sx={{
-                          width: 32,
-                          height: 32,
-                          color: currentSet === 0 ? 'grey.400' : 'rgb(147, 51, 234)',
+                          width: 34, height: 34,
+                          borderRadius: '8px',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: '0.8rem', fontWeight: 600,
+                          cursor: 'pointer',
+                          border: '1.5px solid',
+                          bgcolor: isHighlighted
+                            ? 'error.main'
+                            : isAnswered ? 'rgb(16, 185, 129)' : 'white',
+                          color: isHighlighted || isAnswered ? 'white' : 'text.primary',
+                          borderColor: isHighlighted
+                            ? 'error.main'
+                            : isAnswered ? 'rgb(16, 185, 129)' : 'grey.300',
+                          transition: 'all 0.15s ease-in-out',
+                          '&:hover': { transform: 'scale(1.1)' },
                         }}
                       >
-                        <ChevronLeft size={18} />
-                      </IconButton>
-                    )}
+                        {pageStart + idx + 1}
+                      </Box>
+                    )
+                  })}
+                </Box>
 
-                    {/* Numbered Question Buttons (max 10 per set) */}
-                    {visibleQuestions.map((q, localIdx) => {
-                      const globalIdx = setStart + localIdx
-                      const isActive = currentPage === globalIdx
-                      const isAnswered = !!answers[q.id]
+                {/* Page progress dots */}
+                <Box sx={{ display: 'flex', justifyContent: 'center', gap: 0.5, mt: 1.5 }}>
+                  {Array.from({ length: totalPages }, (_, i) => (
+                    <Box
+                      key={i}
+                      sx={{
+                        width: currentPage === i ? 18 : 8,
+                        height: 8,
+                        borderRadius: '4px',
+                        bgcolor: currentPage === i ? 'rgb(147, 51, 234)' : 'grey.300',
+                        transition: 'all 0.2s ease',
+                      }}
+                    />
+                  ))}
+                </Box>
 
-                      return (
-                        <IconButton
-                          key={q.id}
-                          size="small"
-                          onClick={() => setCurrentPage(globalIdx)}
-                          sx={{
-                            width: 38,
-                            height: 38,
-                            borderRadius: '8px',
-                            fontSize: '0.85rem',
-                            fontWeight: isActive ? 700 : 500,
-                            border: isActive ? '2px solid rgb(147, 51, 234)' : '1px solid',
-                            borderColor: isActive
-                              ? 'rgb(147, 51, 234)'
-                              : isAnswered
-                                ? 'rgb(16, 185, 129)'
-                                : 'grey.300',
-                            bgcolor: isActive
-                              ? 'rgb(147, 51, 234)'
-                              : isAnswered
-                                ? 'rgb(16, 185, 129)'
-                                : '#fff',
-                            color: isActive || isAnswered ? '#fff' : 'text.primary',
-                            transition: 'all 0.15s ease-in-out',
-                            '&:hover': {
-                              bgcolor: isActive
-                                ? 'rgb(126, 34, 206)'
-                                : isAnswered
-                                  ? 'rgb(5, 150, 105)'
-                                  : 'grey.100',
-                              transform: 'scale(1.08)',
-                            },
-                          }}
-                        >
-                          {globalIdx + 1}
-                        </IconButton>
-                      )
-                    })}
+                {/* Legend */}
+                <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, mt: 1 }}>
+                  {[
+                    { color: 'rgb(16, 185, 129)', label: 'Answered' },
+                    { color: 'error.main',        label: 'Requires answer' },
+                    { color: 'white', border: true, label: 'Unanswered' },
+                  ].map(({ color, border, label }) => (
+                    <Box key={label} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <Box sx={{ width: 10, height: 10, borderRadius: '3px', bgcolor: color, ...(border ? { border: '1px solid', borderColor: 'grey.300' } : {}) }} />
+                      <Typography variant="caption" color="text.secondary">{label}</Typography>
+                    </Box>
+                  ))}
+                </Box>
+              </CardContent>
+            </Card>
+          )}
 
-                    {/* Next Set Arrow */}
-                    {totalSets > 1 && (
-                      <IconButton
-                        size="small"
-                        onClick={() => {
-                          const newPage = Math.min(questions.length - 1, setStart + QUESTIONS_PER_SET)
-                          setCurrentPage(newPage)
-                        }}
-                        disabled={currentSet >= totalSets - 1}
+          {/* ── Validation alert ─────────────────────────────────────────── */}
+          {pageValidationError && (
+            <Alert
+              severity="error"
+              sx={{ mb: 2 }}
+              onClose={() => { setPageValidationError(''); setUnansweredOnPage([]) }}
+            >
+              {pageValidationError}
+            </Alert>
+          )}
+
+          {/* ── Questions on current page ────────────────────────────────── */}
+          {pageQuestions.map((question, pageIdx) => {
+            const globalIdx     = pageStart + pageIdx
+            const isAnswered    = !!answers[question.id]
+            const isHighlighted = unansweredOnPage.includes(question.id)
+
+            return (
+              <Card
+                key={question.id}
+                id={`question-${question.id}`}
+                sx={{
+                  mb: 2,
+                  borderLeft: 4,
+                  borderColor: isHighlighted
+                    ? 'error.main'
+                    : isAnswered ? 'success.main' : 'divider',
+                  transition: 'border-color 0.2s ease',
+                }}
+              >
+                <CardContent>
+                  {/* Question header row */}
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Box
                         sx={{
-                          width: 32,
-                          height: 32,
-                          color: currentSet >= totalSets - 1 ? 'grey.400' : 'rgb(147, 51, 234)',
+                          width: 28, height: 28,
+                          borderRadius: '50%',
+                          bgcolor: isAnswered
+                            ? 'rgb(16, 185, 129)'
+                            : isHighlighted ? 'error.main' : 'rgb(147, 51, 234)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          color: 'white', fontSize: '0.8rem', fontWeight: 700, flexShrink: 0,
                         }}
                       >
-                        <ChevronRight size={18} />
-                      </IconButton>
-                    )}
+                        {globalIdx + 1}
+                      </Box>
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}
+                      >
+                        {question.question_type === 'multiple-choice' ? 'Multiple Choice'
+                          : question.question_type === 'true-false'    ? 'True or False'
+                          : question.question_type === 'identification' ? 'Identification'
+                          : 'Essay'}
+                      </Typography>
+                    </Box>
+                    <Chip label={`${question.points || 1} pts`} size="small" variant="outlined" />
                   </Box>
 
-                  {/* Page set dots */}
-                  {totalSets > 1 && (
-                    <Box sx={{ display: 'flex', justifyContent: 'center', gap: 0.5, mt: 1 }}>
-                      {Array.from({ length: totalSets }, (_, setIdx) => (
-                        <Box
-                          key={setIdx}
-                          onClick={() => setCurrentPage(setIdx * QUESTIONS_PER_SET)}
-                          sx={{
-                            width: currentSet === setIdx ? 18 : 8,
-                            height: 8,
-                            borderRadius: '4px',
-                            bgcolor: currentSet === setIdx ? 'rgb(147, 51, 234)' : 'grey.300',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s ease',
-                            '&:hover': {
-                              bgcolor: currentSet === setIdx ? 'rgb(126, 34, 206)' : 'grey.400',
-                            },
-                          }}
-                        />
-                      ))}
+                  {/* Optional image */}
+                  {question.image_url && (
+                    <Box sx={{ mb: 2, textAlign: 'center' }}>
+                      <img
+                        src={question.image_url}
+                        alt={`Question ${globalIdx + 1}`}
+                        style={{ maxWidth: '100%', maxHeight: '300px', borderRadius: '8px', border: '1px solid #ddd' }}
+                      />
                     </Box>
                   )}
 
-                  {/* Legend */}
-                  <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, mt: 1 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                      <Box sx={{ width: 10, height: 10, borderRadius: '3px', bgcolor: 'rgb(147, 51, 234)' }} />
-                      <Typography variant="caption" color="text.secondary">Current</Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                      <Box sx={{ width: 10, height: 10, borderRadius: '3px', bgcolor: 'rgb(16, 185, 129)' }} />
-                      <Typography variant="caption" color="text.secondary">Answered</Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                      <Box sx={{ width: 10, height: 10, borderRadius: '3px', bgcolor: '#fff', border: '1px solid', borderColor: 'grey.300' }} />
-                      <Typography variant="caption" color="text.secondary">Unanswered</Typography>
-                    </Box>
-                  </Box>
+                  {/* Question text */}
+                  <Typography variant="body1" sx={{ mb: 2.5, fontWeight: 500 }}>
+                    {question.question}
+                  </Typography>
+
+                  {/* Multiple choice */}
+                  {question.question_type === 'multiple-choice' && question.options && (
+                    <FormControl component="fieldset" fullWidth>
+                      <RadioGroup
+                        value={answers[question.id] || ''}
+                        onChange={e => handleAnswerChange(question.id, e.target.value)}
+                      >
+                        {normalizeOptions(question.options).map((opt, i) => (
+                          <FormControlLabel
+                            key={i}
+                            value={opt}
+                            control={<Radio />}
+                            label={opt}
+                            disabled={submitting}
+                            sx={{
+                              p: 0.5, borderRadius: 1,
+                              bgcolor: answers[question.id] === opt ? 'rgba(147,51,234,0.07)' : 'transparent',
+                            }}
+                          />
+                        ))}
+                      </RadioGroup>
+                    </FormControl>
+                  )}
+
+                  {/* True / False */}
+                  {question.question_type === 'true-false' && (
+                    <FormControl component="fieldset" fullWidth>
+                      <RadioGroup
+                        value={answers[question.id] || ''}
+                        onChange={e => handleAnswerChange(question.id, e.target.value)}
+                      >
+                        {['True', 'False'].map(val => (
+                          <FormControlLabel
+                            key={val}
+                            value={val}
+                            control={<Radio />}
+                            label={val}
+                            disabled={submitting}
+                            sx={{
+                              p: 0.5, borderRadius: 1,
+                              bgcolor: answers[question.id] === val ? 'rgba(147,51,234,0.07)' : 'transparent',
+                            }}
+                          />
+                        ))}
+                      </RadioGroup>
+                    </FormControl>
+                  )}
+
+                  {/* Identification */}
+                  {question.question_type === 'identification' && (
+                    <TextField
+                      fullWidth
+                      size="small"
+                      placeholder="Type your answer here…"
+                      value={answers[question.id] || ''}
+                      onChange={e => handleAnswerChange(question.id, e.target.value)}
+                      disabled={submitting}
+                    />
+                  )}
+
+                  {/* Essay */}
+                  {question.question_type === 'essay' && (
+                    <TextField
+                      fullWidth
+                      multiline
+                      rows={5}
+                      placeholder="Write your essay answer here…"
+                      value={answers[question.id] || ''}
+                      onChange={e => handleAnswerChange(question.id, e.target.value)}
+                      disabled={submitting}
+                    />
+                  )}
                 </CardContent>
               </Card>
+            )
+          })}
 
-              {/* Single Question Display */}
-              {(() => {
-                const question = questions[currentPage]
-                if (!question) return null
-                return (
-                  <Card sx={{ mb: 2 }}>
-                    <CardContent>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-                        <Typography variant="h6">
-                          Question {currentPage + 1} of {questions.length}
-                        </Typography>
-                        <Chip label={`${question.points || 1} pts`} size="small" />
-                      </Box>
+          {/* ── Page navigation footer ───────────────────────────────────── */}
+          <Card sx={{ mt: 1, bgcolor: 'grey.50' }}>
+            <CardContent sx={{ py: 2, '&:last-child': { pb: 2 } }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
 
-                      {/* Display question image if available */}
-                      {question.image_url && (
-                        <Box sx={{ mb: 2, textAlign: 'center' }}>
-                          <img 
-                            src={question.image_url} 
-                            alt={`Question ${currentPage + 1} image`}
-                            style={{ 
-                              maxWidth: '100%', 
-                              maxHeight: '300px', 
-                              borderRadius: '8px',
-                              border: '1px solid #ddd'
-                            }} 
-                          />
-                        </Box>
-                      )}
-
-                      <Typography variant="body1" sx={{ mb: 2 }}>
-                        {question.question}
-                      </Typography>
-
-                      {question.question_type === 'multiple-choice' && question.options && (
-                        <FormControl component="fieldset" fullWidth>
-                          <RadioGroup
-                            value={answers[question.id] || ''}
-                            onChange={(e) => handleAnswerChange(question.id, e.target.value)}
-                          >
-                            {(Array.isArray(question.options) ? question.options : 
-                              typeof question.options === 'string' ? JSON.parse(question.options as unknown as string) : 
-                              []).map((option: string, optIndex: number) => (
-                              <FormControlLabel
-                                key={optIndex}
-                                value={option}
-                                control={<Radio />}
-                                label={option}
-                                disabled={submitting}
-                              />
-                            ))}
-                          </RadioGroup>
-                        </FormControl>
-                      )}
-
-                      {question.question_type === 'true-false' && (
-                        <FormControl component="fieldset" fullWidth>
-                          <RadioGroup
-                            value={answers[question.id] || ''}
-                            onChange={(e) => handleAnswerChange(question.id, e.target.value)}
-                          >
-                            <FormControlLabel value="True" control={<Radio />} label="True" disabled={submitting} />
-                            <FormControlLabel value="False" control={<Radio />} label="False" disabled={submitting} />
-                          </RadioGroup>
-                        </FormControl>
-                      )}
-
-                      {(question.question_type === 'identification') && (
-                        <TextField
-                          fullWidth
-                          placeholder="Type your answer here..."
-                          value={answers[question.id] || ''}
-                          onChange={(e) => handleAnswerChange(question.id, e.target.value)}
-                          disabled={submitting}
-                        />
-                      )}
-
-                      {(question.question_type === 'essay') && (
-                        <TextField
-                          fullWidth
-                          multiline
-                          rows={6}
-                          placeholder="Write your essay answer here..."
-                          value={answers[question.id] || ''}
-                          onChange={(e) => handleAnswerChange(question.id, e.target.value)}
-                          disabled={submitting}
-                        />
-                      )}
-                    </CardContent>
-                  </Card>
-                )
-              })()}
-
-              {/* Navigation Buttons */}
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                {/* Previous page */}
                 <Button
                   variant="outlined"
                   startIcon={<ChevronLeft size={18} />}
-                  onClick={() => setCurrentPage((prev) => Math.max(0, prev - 1))}
+                  onClick={handlePrevPage}
                   disabled={currentPage === 0 || submitting}
-                  sx={{
-                    borderColor: 'rgb(147, 51, 234)',
-                    color: 'rgb(147, 51, 234)',
-                    '&:hover': {
-                      borderColor: 'rgb(126, 34, 206)',
-                      bgcolor: 'rgba(147, 51, 234, 0.04)',
-                    },
-                    '&:disabled': {
-                      borderColor: 'grey.300',
-                      color: 'grey.400',
-                    },
-                  }}
+                  sx={purpleOutlined}
                 >
                   Previous
                 </Button>
 
-                <Typography variant="body2" color="text.secondary">
-                  {currentPage + 1} / {questions.length}
-                </Typography>
+                {/* Centre indicator */}
+                <Box sx={{ textAlign: 'center' }}>
+                  {totalPages > 1 ? (
+                    <>
+                      <Typography variant="body1" fontWeight="bold">
+                        Page {currentPage + 1} of {totalPages}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Q{pageStart + 1}–Q{pageEnd} of {questions.length}
+                      </Typography>
+                    </>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      {answeredCount} / {questions.length} answered
+                    </Typography>
+                  )}
+                </Box>
 
-                <Button
-                  variant="outlined"
-                  endIcon={<ChevronRight size={18} />}
-                  onClick={() => setCurrentPage((prev) => Math.min(questions.length - 1, prev + 1))}
-                  disabled={currentPage >= questions.length - 1 || submitting}
-                  sx={{
-                    borderColor: 'rgb(147, 51, 234)',
-                    color: 'rgb(147, 51, 234)',
-                    '&:hover': {
-                      borderColor: 'rgb(126, 34, 206)',
-                      bgcolor: 'rgba(147, 51, 234, 0.04)',
-                    },
-                    '&:disabled': {
-                      borderColor: 'grey.300',
-                      color: 'grey.400',
-                    },
-                  }}
-                >
-                  Next
-                </Button>
+                {/* Next page or Submit */}
+                {currentPage < totalPages - 1 ? (
+                  <Button
+                    variant="contained"
+                    endIcon={<ChevronRight size={18} />}
+                    onClick={handleNextPage}
+                    disabled={submitting}
+                    sx={purpleContained}
+                  >
+                    Next Page
+                  </Button>
+                ) : (
+                  <Button
+                    variant="contained"
+                    startIcon={submitting ? <CircularProgress size={18} color="inherit" /> : <Send size={18} />}
+                    onClick={handleLastPageSubmit}
+                    disabled={submitting}
+                    sx={purpleContained}
+                  >
+                    {submitting ? 'Submitting…' : 'Submit Quiz'}
+                  </Button>
+                )}
               </Box>
-            </>
-          )
-        })()
+            </CardContent>
+          </Card>
+        </>
       )}
 
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 4 }}>
-        <Typography variant="body2" color="text.secondary">
-          Make sure to answer all questions before submitting.
-          {' '}Your answers are auto-saved.
-        </Typography>
-        <Button
-          variant="contained"
-          size="large"
-          startIcon={submitting ? <CircularProgress size={20} /> : <Send size={20} />}
-          onClick={handleSubmit}
-          disabled={submitting || answeredCount === 0}
-          sx={{
-            bgcolor: 'rgb(147, 51, 234)',
-            '&:hover': { bgcolor: 'rgb(126, 34, 206)' },
-            '&:disabled': { bgcolor: 'grey.300' },
-          }}
-        >
-          {submitting ? 'Submitting...' : 'Submit Quiz'}
-        </Button>
-      </Box>
-
-      {/* Save error snackbar */}
+      {/* Save-error snackbar */}
       <Snackbar
         open={saveStatus === 'error'}
         autoHideDuration={3000}
