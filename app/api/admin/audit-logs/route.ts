@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const supabase = await createClient()
 
@@ -24,10 +24,47 @@ export async function GET() {
       return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
     }
 
-    // Fetch audit logs from the database
-    const { data: auditLogs, error: auditError } = await supabase
+    // Parse query parameters for filtering
+    const searchParams = new URL(request.url).searchParams
+    const actionType = searchParams.get('action_type')
+    const status = searchParams.get('status')
+    const userRole = searchParams.get('user_role')
+    const search = searchParams.get('search')
+    const dateFrom = searchParams.get('dateFrom')
+    const dateTo = searchParams.get('dateTo')
+
+    // Build the query
+    let query = supabase
       .from('audit_logs')
       .select('*')
+
+    // Apply filters
+    if (actionType && actionType !== 'all') {
+      query = query.eq('action_type', actionType)
+    }
+
+    if (status && status !== 'all') {
+      query = query.eq('status', status)
+    }
+
+    if (userRole && userRole !== 'all') {
+      query = query.eq('user_role', userRole)
+    }
+
+    // Date range filters
+    if (dateFrom) {
+      query = query.gte('created_at', dateFrom)
+    }
+
+    if (dateTo) {
+      // Add 1 day to include the entire "to" date
+      const toDate = new Date(dateTo)
+      toDate.setDate(toDate.getDate() + 1)
+      query = query.lt('created_at', toDate.toISOString())
+    }
+
+    // Execute the query with ordering and limit
+    const { data: auditLogs, error: auditError } = await query
       .order('created_at', { ascending: false })
       .limit(500)
 
@@ -36,7 +73,19 @@ export async function GET() {
       return NextResponse.json({ error: 'Failed to fetch audit logs' }, { status: 500 })
     }
 
-    return NextResponse.json({ logs: auditLogs || [] })
+    // Filter by search term on client side only if provided
+    let filteredLogs = auditLogs || []
+    if (search) {
+      const searchLower = search.toLowerCase()
+      filteredLogs = filteredLogs.filter(
+        (log: { user_name?: string; action?: string; resource_type?: string }) =>
+          log.user_name?.toLowerCase().includes(searchLower) ||
+          log.action?.toLowerCase().includes(searchLower) ||
+          log.resource_type?.toLowerCase().includes(searchLower)
+      )
+    }
+
+    return NextResponse.json({ logs: filteredLogs })
   } catch (error) {
     console.error('Error in audit logs API:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

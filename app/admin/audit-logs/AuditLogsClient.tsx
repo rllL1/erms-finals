@@ -93,12 +93,14 @@ export default function AuditLogsClient() {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const isSmallMobile = useMediaQuery(theme.breakpoints.down('sm'))
-  
+
   const [logs, setLogs] = useState<AuditLog[]>([])
   const [filteredLogs, setFilteredLogs] = useState<AuditLog[]>([])
   const [loading, setLoading] = useState(true)
+  const [filterLoading, setFilterLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [filterError, setFilterError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [actionFilter, setActionFilter] = useState<string>('all')
   const [statusFilter, setStatusFilter] = useState<string>('all')
@@ -107,28 +109,84 @@ export default function AuditLogsClient() {
   const [dateTo, setDateTo] = useState<string>('')
   const [page, setPage] = useState(1)
   const [expandedRow, setExpandedRow] = useState<string | null>(null)
+  const [availableRoles, setAvailableRoles] = useState<string[]>([])
   const itemsPerPage = 15
 
-  const fetchAuditLogs = async (isRefresh = false) => {
+  const fetchAuditLogs = async (isRefresh = false, filters?: { actionType?: string; status?: string; userRole?: string; search?: string; dateFrom?: string; dateTo?: string }) => {
     try {
       if (isRefresh) {
         setRefreshing(true)
-      } else {
+      } else if (!filters) {
         setLoading(true)
+      } else {
+        setFilterLoading(true)
       }
-      setError(null)
-      const response = await fetch('/api/admin/audit-logs')
+
+      if (filters) {
+        setFilterError(null)
+      } else {
+        setError(null)
+      }
+
+      // Build query parameters
+      const params = new URLSearchParams()
+      if (filters?.actionType && filters.actionType !== 'all') {
+        params.append('action_type', filters.actionType)
+      }
+      if (filters?.status && filters.status !== 'all') {
+        params.append('status', filters.status)
+      }
+      if (filters?.userRole && filters.userRole !== 'all') {
+        params.append('user_role', filters.userRole)
+      }
+      if (filters?.search) {
+        params.append('search', filters.search)
+      }
+      if (filters?.dateFrom) {
+        params.append('dateFrom', filters.dateFrom)
+      }
+      if (filters?.dateTo) {
+        params.append('dateTo', filters.dateTo)
+      }
+
+      const queryString = params.toString()
+      const url = `/api/admin/audit-logs${queryString ? '?' + queryString : ''}`
+      const response = await fetch(url)
+
       if (response.ok) {
         const data = await response.json()
-        setLogs(data.logs || [])
+        if (filters) {
+          // When filtering, update filtered logs
+          setFilteredLogs(data.logs || [])
+          setPage(1)
+        } else {
+          // On initial load, set both logs and extract roles
+          setLogs(data.logs || [])
+          setFilteredLogs(data.logs || [])
+
+          // Extract unique roles
+          const uniqueRoles = Array.from(new Set((data.logs || []).map((log: AuditLog) => log.user_role)))
+          setAvailableRoles(uniqueRoles as string[])
+        }
       } else {
-        setError('Failed to fetch audit logs')
+        const errorMsg = filters ? 'Failed to apply filters' : 'Failed to fetch audit logs'
+        if (filters) {
+          setFilterError(errorMsg)
+        } else {
+          setError(errorMsg)
+        }
       }
     } catch (err) {
       console.error('Failed to fetch audit logs:', err)
-      setError('Failed to fetch audit logs. Please try again.')
+      const errorMsg = filters ? 'Failed to apply filters. Please try again.' : 'Failed to fetch audit logs. Please try again.'
+      if (filters) {
+        setFilterError(errorMsg)
+      } else {
+        setError(errorMsg)
+      }
     } finally {
       setLoading(false)
+      setFilterLoading(false)
       setRefreshing(false)
     }
   }
@@ -171,56 +229,52 @@ export default function AuditLogsClient() {
     setRoleFilter('all')
     setDateFrom('')
     setDateTo('')
+    setFilterError(null)
   }
 
-  const filterLogs = useCallback(() => {
-    let filtered = [...logs]
+  // Debounced filter application
+  const applyFilters = useCallback(
+    (actionT?: string, stat?: string, role?: string, search?: string, from?: string, to?: string) => {
+      const filters = {
+        actionType: actionT ?? actionFilter,
+        status: stat ?? statusFilter,
+        userRole: role ?? roleFilter,
+        search: search ?? searchQuery,
+        dateFrom: from ?? dateFrom,
+        dateTo: to ?? dateTo,
+      }
 
-    if (searchQuery) {
-      filtered = filtered.filter(
-        (log) =>
-          log.user_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          log.action.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          log.resource_type?.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    }
+      fetchAuditLogs(false, filters)
+    },
+    [actionFilter, statusFilter, roleFilter, searchQuery, dateFrom, dateTo]
+  )
 
-    if (actionFilter !== 'all') {
-      filtered = filtered.filter((log) => log.action_type === actionFilter)
-    }
+  // Set up filter change listeners
+  useEffect(() => {
+    // Only fetch filtered data if we're not on the initial load
+    if (loading) return
 
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter((log) => log.status === statusFilter)
-    }
+    const timer = setTimeout(() => {
+      applyFilters()
+    }, 300) // Debounce for 300ms
 
-    if (roleFilter !== 'all') {
-      filtered = filtered.filter((log) => log.user_role === roleFilter)
-    }
+    return () => clearTimeout(timer)
+  }, [actionFilter, statusFilter, roleFilter, dateFrom, dateTo, applyFilters, loading])
 
-    // Date range filter
-    if (dateFrom) {
-      const fromDate = new Date(dateFrom)
-      fromDate.setHours(0, 0, 0, 0)
-      filtered = filtered.filter((log) => new Date(log.created_at) >= fromDate)
-    }
+  // Separate useEffect for search query debouncing (longer debounce)
+  useEffect(() => {
+    if (loading) return
 
-    if (dateTo) {
-      const toDate = new Date(dateTo)
-      toDate.setHours(23, 59, 59, 999)
-      filtered = filtered.filter((log) => new Date(log.created_at) <= toDate)
-    }
+    const timer = setTimeout(() => {
+      applyFilters()
+    }, 500) // Longer debounce for search
 
-    setFilteredLogs(filtered)
-    setPage(1)
-  }, [logs, searchQuery, actionFilter, statusFilter, roleFilter, dateFrom, dateTo])
+    return () => clearTimeout(timer)
+  }, [searchQuery, applyFilters, loading])
 
   useEffect(() => {
     fetchAuditLogs()
   }, [])
-
-  useEffect(() => {
-    filterLogs()
-  }, [filterLogs])
 
   const paginatedLogs = filteredLogs.slice((page - 1) * itemsPerPage, page * itemsPerPage)
   const totalPages = Math.ceil(filteredLogs.length / itemsPerPage)
@@ -270,24 +324,33 @@ export default function AuditLogsClient() {
         </Alert>
       )}
 
-      {/* Statistics Cards */}
+      {/* Filter Error Alert */}
+      {filterError && (
+        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setFilterError(null)}>
+          {filterError}
+        </Alert>
+      )}
+
+      {/* Statistics Cards - Show filtered counts */}
       <Box
         sx={{
           display: 'grid',
           gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' },
           gap: 2,
           mb: 3,
+          opacity: filterLoading ? 0.6 : 1,
+          transition: 'opacity 0.2s',
         }}
       >
         <Paper sx={{ p: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
             <Clock className="w-5 h-5 text-blue-500" />
             <Typography variant="body2" color="text.secondary">
-              Total
+              {actionFilter !== 'all' || statusFilter !== 'all' || roleFilter !== 'all' || dateFrom || dateTo ? 'Filtered' : 'Total'}
             </Typography>
           </Box>
           <Typography variant={isMobile ? 'h5' : 'h4'} sx={{ fontWeight: 'bold' }}>
-            {logs.length}
+            {filteredLogs.length}
           </Typography>
         </Paper>
         <Paper sx={{ p: 2 }}>
@@ -298,7 +361,7 @@ export default function AuditLogsClient() {
             </Typography>
           </Box>
           <Typography variant={isMobile ? 'h5' : 'h4'} sx={{ fontWeight: 'bold', color: 'success.main' }}>
-            {logs.filter((l) => l.status === 'success').length}
+            {filteredLogs.filter((l) => l.status === 'success').length}
           </Typography>
         </Paper>
         <Paper sx={{ p: 2 }}>
@@ -309,7 +372,7 @@ export default function AuditLogsClient() {
             </Typography>
           </Box>
           <Typography variant={isMobile ? 'h5' : 'h4'} sx={{ fontWeight: 'bold', color: 'error.main' }}>
-            {logs.filter((l) => l.status === 'failure').length}
+            {filteredLogs.filter((l) => l.status === 'failure').length}
           </Typography>
         </Paper>
         <Paper sx={{ p: 2 }}>
@@ -320,20 +383,21 @@ export default function AuditLogsClient() {
             </Typography>
           </Box>
           <Typography variant={isMobile ? 'h5' : 'h4'} sx={{ fontWeight: 'bold', color: 'warning.main' }}>
-            {logs.filter((l) => l.status === 'warning').length}
+            {filteredLogs.filter((l) => l.status === 'warning').length}
           </Typography>
         </Paper>
       </Box>
 
       {/* Filters */}
-      <Paper sx={{ p: { xs: 2, md: 3 }, mb: 3 }}>
+      <Paper sx={{ p: { xs: 2, md: 3 }, mb: 3, opacity: filterLoading ? 0.6 : 1, transition: 'opacity 0.2s' }}>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {/* Search and Action Buttons */}
-          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
             <TextField
               placeholder="Search logs..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              disabled={filterLoading}
               sx={{ flex: 1, minWidth: { xs: '100%', sm: 250 } }}
               size="small"
               InputProps={{
@@ -344,19 +408,20 @@ export default function AuditLogsClient() {
                 ),
               }}
             />
-            <Button 
-              variant="text" 
-              size="small" 
+            {filterLoading && <CircularProgress size={20} />}
+            <Button
+              variant="text"
+              size="small"
               onClick={handleClearFilters}
               sx={{ display: { xs: 'none', sm: 'flex' } }}
             >
               Clear Filters
             </Button>
           </Box>
-          
+
           {/* Filter Dropdowns */}
           <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-            <FormControl size="small" sx={{ minWidth: { xs: 'calc(50% - 8px)', sm: 130 } }}>
+            <FormControl size="small" sx={{ minWidth: { xs: 'calc(50% - 8px)', sm: 130 } }} disabled={filterLoading}>
               <InputLabel>Action Type</InputLabel>
               <Select
                 value={actionFilter}
@@ -373,7 +438,7 @@ export default function AuditLogsClient() {
                 <MenuItem value="system">System</MenuItem>
               </Select>
             </FormControl>
-            <FormControl size="small" sx={{ minWidth: { xs: 'calc(50% - 8px)', sm: 120 } }}>
+            <FormControl size="small" sx={{ minWidth: { xs: 'calc(50% - 8px)', sm: 120 } }} disabled={filterLoading}>
               <InputLabel>Status</InputLabel>
               <Select
                 value={statusFilter}
@@ -386,7 +451,7 @@ export default function AuditLogsClient() {
                 <MenuItem value="warning">Warning</MenuItem>
               </Select>
             </FormControl>
-            <FormControl size="small" sx={{ minWidth: { xs: 'calc(50% - 8px)', sm: 120 } }}>
+            <FormControl size="small" sx={{ minWidth: { xs: 'calc(50% - 8px)', sm: 120 } }} disabled={filterLoading}>
               <InputLabel>Role</InputLabel>
               <Select
                 value={roleFilter}
@@ -394,9 +459,11 @@ export default function AuditLogsClient() {
                 onChange={(e: SelectChangeEvent) => setRoleFilter(e.target.value)}
               >
                 <MenuItem value="all">All Roles</MenuItem>
-                <MenuItem value="admin">Admin</MenuItem>
-                <MenuItem value="teacher">Teacher</MenuItem>
-                <MenuItem value="student">Student</MenuItem>
+                {availableRoles.map((role) => (
+                  <MenuItem key={role} value={role}>
+                    {role.charAt(0).toUpperCase() + role.slice(1)}
+                  </MenuItem>
+                ))}
               </Select>
             </FormControl>
           </Box>
@@ -413,6 +480,7 @@ export default function AuditLogsClient() {
               label="From"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
+              disabled={filterLoading}
               InputLabelProps={{ shrink: true }}
               sx={{ minWidth: { xs: 'calc(50% - 8px)', sm: 150 } }}
             />
@@ -422,12 +490,13 @@ export default function AuditLogsClient() {
               label="To"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
+              disabled={filterLoading}
               InputLabelProps={{ shrink: true }}
               sx={{ minWidth: { xs: 'calc(50% - 8px)', sm: 150 } }}
             />
-            <Button 
-              variant="text" 
-              size="small" 
+            <Button
+              variant="text"
+              size="small"
               onClick={handleClearFilters}
               sx={{ display: { xs: 'flex', sm: 'none' } }}
             >
@@ -470,7 +539,11 @@ export default function AuditLogsClient() {
                 <TableRow>
                   <TableCell colSpan={8} align="center" sx={{ py: 8 }}>
                     <Shield className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                    <Typography color="text.secondary">No audit logs found</Typography>
+                    <Typography color="text.secondary">
+                      {logs.length === 0
+                        ? 'No audit logs exist yet'
+                        : 'No logs match your filters. Try adjusting the filters.'}
+                    </Typography>
                   </TableCell>
                 </TableRow>
               ) : (
@@ -610,7 +683,11 @@ export default function AuditLogsClient() {
           ) : paginatedLogs.length === 0 ? (
             <Paper sx={{ py: 8, textAlign: 'center' }}>
               <Shield className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-              <Typography color="text.secondary">No audit logs found</Typography>
+              <Typography color="text.secondary">
+                {logs.length === 0
+                  ? 'No audit logs exist yet'
+                  : 'No logs match your filters. Try adjusting the filters.'}
+              </Typography>
             </Paper>
           ) : (
             paginatedLogs.map((log) => {
